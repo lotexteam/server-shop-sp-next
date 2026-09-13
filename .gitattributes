@@ -1,0 +1,8 @@
+# Shell-скрипты обязаны быть LF (запускаются на Linux VPS; CRLF ломает shebang)
+*.sh text eol=lf
+# Workflows и compose — тоже LF (YAML-парсеры в CI/Linux)
+*.yml text eol=lf
+*.yaml text eol=lf
+Dockerfile text eol=lf
+# Исходники — пусть git решает (autocrlf), но canonical в репо — LF
+* text=auto
