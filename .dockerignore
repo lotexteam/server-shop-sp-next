@@ -1,0 +1,18 @@
+# Секреты никогда не попадают в образ/контекст (frontend_write_env кладёт
+# сюда .env и .env.prod с GH_TOKEN!)
+.env
+.env.*
+!.env.example
+!.env.prod.example
+
+# Зависимости и артефакты (в образ ставится npm ci, сборка — npm run build)
+node_modules
+.next
+dist
+.npm-cache
+
+# Git и локальные файлы
+.git
+.gitignore
+.deploy-state
+*.md
