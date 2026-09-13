@@ -117,8 +117,11 @@ export function ProductCard({
           ))}
         </ul>
 
-        <div className="mt-auto flex items-end justify-between gap-2 pt-2">
-          <div>
+        {/* Цена + кнопки: при длинной цене (готовые сборки, 6+ знаков)
+            кнопки переносятся на следующую строку, а не вылетают
+            за overflow-hidden карточки. */}
+        <div className="mt-auto flex flex-wrap items-end justify-between gap-2 pt-2">
+          <div className="min-w-0">
             {product.onRequest || product.price == null ? (
               <div className="text-h5 font-bold text-foreground">Под заказ</div>
             ) : (
@@ -131,7 +134,7 @@ export function ProductCard({
               </>
             )}
           </div>
-          <div className="flex gap-1.5">
+          <div className="ml-auto flex shrink-0 gap-1.5">
             <Button
               size="icon"
               variant={inCompare ? "primary" : "outline"}
