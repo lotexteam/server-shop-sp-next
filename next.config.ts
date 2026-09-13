@@ -13,6 +13,13 @@ const nextConfig: NextConfig = {
   },
   // Dev-сервер доступен и по 127.0.0.1, и по localhost (с портом).
   allowedDevOrigins: ["http://127.0.0.1:3100", "http://localhost:3100"],
+  // Single-domain деплой: на одном хосте с admin-ui (тоже Next.js) путь
+  // /_next/* принадлежит админке (Caddyfile). Префикс /shop-next выносит
+  // статику витрины из-под конфликта; генерируется соответствующий маршрут
+  // в Caddy (server-shop scripts/lib-caddy.sh). В multi-domain не задавайте.
+  ...(process.env.NEXT_ASSET_PREFIX
+    ? { assetPrefix: process.env.NEXT_ASSET_PREFIX }
+    : {}),
   // Компактный Node-контейнер: docker copy .next/standalone + static + public.
   output: "standalone",
   images: {

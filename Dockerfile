@@ -12,10 +12,15 @@ ARG NEXT_PUBLIC_API_BASE_URL=http://127.0.0.1:8080/api/v1
 ARG NEXT_PUBLIC_MEDIA_BASE_URL=
 ARG API_BASE_URL=http://127.0.0.1:8080/api/v1
 ARG APP_URL=http://localhost:3000
+# Single-domain деплой (один хост с admin-ui): префикс статики витрины,
+# чтобы /_next/* не конфликтовал с админкой (маршрут в Caddyfile).
+# Пусто = обычный /_next (multi-domain/standalone).
+ARG NEXT_ASSET_PREFIX=
 ENV NEXT_PUBLIC_API_BASE_URL=$NEXT_PUBLIC_API_BASE_URL
 ENV NEXT_PUBLIC_MEDIA_BASE_URL=$NEXT_PUBLIC_MEDIA_BASE_URL
 ENV API_BASE_URL=$API_BASE_URL
 ENV APP_URL=$APP_URL
+ENV NEXT_ASSET_PREFIX=$NEXT_ASSET_PREFIX
 ENV NEXT_TELEMETRY_DISABLED=1
 
 RUN npm run build

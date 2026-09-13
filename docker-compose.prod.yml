@@ -16,6 +16,8 @@ services:
         NEXT_PUBLIC_MEDIA_BASE_URL: ${NEXT_PUBLIC_MEDIA_BASE_URL:-}
         API_BASE_URL: ${API_BASE_URL:-${NEXT_PUBLIC_API_BASE_URL:-http://127.0.0.1:8080/api/v1}}
         APP_URL: ${APP_URL:-http://localhost}
+        # Single-domain: /shop-next (статика витрины вне /_next/* админки).
+        NEXT_ASSET_PREFIX: ${NEXT_ASSET_PREFIX:-}
     # PORT=80 — Caddy проксирует на сетевой алиас :80 (как на nginx старой
     # витрины), Caddyfile менять не нужно. standalone server.js слушает PORT.
     environment:
