@@ -102,15 +102,40 @@
   `turbopack: { root: path.resolve(__dirname) }` в next.config.
 - `allowedDevOrigins` для 127.0.0.1 (иначе warning о cross-origin).
 
-## Осталось (Ф6–Ф8 — вне песочницы, на сервере)
+## Тесты (2026-09-13, локальная машина)
 
-- [ ] `next build` полный (в песочнице spawn-этап падает EPERM — собирать
-      в Docker/CI; dev-компиляция всех роутов зелёная).
-- [ ] Docker build + CI (GHCR) + update.sh.
-- [ ] Параллельная эксплуатация на тестовом порту/поддомене, SEO-паритет
-      curl'ом против SPA, скриншот-сравнение.
-- [ ] Переключение алиаса в Caddy, наблюдение 7 дней.
-- [ ] Архивация server-shop-sp-ui.
+- ✅ `tsc --noEmit` — зелёный.
+- ✅ `next build` — **зелёный, 17 роутов** (все Dynamic/SSR). Потребовались
+  два фикса пререндера `/_not-found`:
+  1. Suspense вокруг `{children}` в app/layout.tsx;
+  2. Suspense вокруг `<Header/>` в SiteChrome (Header использует
+     useSearchParams — на статических страницах Next требует границу).
+- ✅ Прод-сервер (`next start`): браузерный тест (agent-browser/Chrome 153,
+  headless) — **консоль чистая: ноль hydration-ошибок**.
+  ⚠️ Dev-режим (Turbopack) давал ложный aria-controls/useId mismatch —
+  известная специфика dev; на проде не воспроизводится. Не тратить время
+  на dev-варнинги гидрации, проверять на `next start`.
+- ✅ Гидрация worst-case (localStorage с корзиной/compare/favorites) — чисто;
+  паттерн «пустой SSR → hydrate-from-storage effect» в store/shop.tsx и
+  store/auth.tsx работает (compare-bar появляется после mount).
+- ✅ SPA-навигация: клик CTA «Перейти в каталог» → /catalog без reload,
+  document.title = «Каталог» (метаданные роута применились).
+- ✅ Редиректы: /cart, /about, /faq, /delivery, /warranty, /tradein,
+  /services, /monitoring → 308 Permanent Redirect на /blog/*.
+- ✅ Фолбэк-тайтлы всех страниц идентичны SPA (вкл. /unsubscribe → site-тайтл,
+  как в titleFromPath).
+- ✅ 404, /api/healthz → ok.
+- ✅ Скриншоты: sp-next-test-artifacts/{home, catalog}-prod.png; DOM-snapshot
+  главной: полная структура (шапка/hero/футер/подписка/152-ФЗ).
+- Git: root-commit 64e195d.
+
+### Не проверено локально (нет бэкенда на 8080)
+
+- Полный SEO-паритет (OG/canonical/JSON-LD/product:price из /seo/document) —
+  работает фолбэками; проверять на сервере с живым API (Ф6).
+- Скриншот-сравнение старое vs новое по 30 URL × 4 вьюпорта (нужен живой
+  каталог с товарами).
+- Docker build/runtime.
 
 ## Для sale-ui (дельта поверх этого рецепта)
 
@@ -124,3 +149,12 @@
   скопировать 8 файлов (latin+cyrillic × 4 веса) из
   `@fontsource/roboto-condensed/files`, preload критичных.
 - titleFromPath в sale-ui шире (proposal и др.) — перенести полный список.
+
+## Осталось (Ф6–Ф8 — на сервере, с живым бэкендом)
+
+- [ ] CI: GHCR publish + update.sh (по образцу sp-ui workflow).
+- [ ] Параллельная эксплуатация на тестовом порту/поддомене, SEO-паритет
+      curl'ом против SPA (OG/canonical/JSON-LD/product:price), скриншот-
+      сравнение по ~30 URL.
+- [ ] Переключение алиаса в Caddy (STOREFRONT_ALIAS), наблюдение 7 дней.
+- [ ] Архивация server-shop-sp-ui.
