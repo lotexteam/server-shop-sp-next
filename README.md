@@ -48,11 +48,51 @@ cp .env.example .env.prod
 docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build
 ```
 
-Контейнер слушает 3000 (внутри), наружу — `STOREFRONT_PORT` (по умолчанию
-127.0.0.1:3100). Caddy проксирует на алиас `server-shop-sp-next-storefront`
-в сети `shop` — та же схема, что у SPA-витрины.
+Контейнер слушает **:80** (`CONTAINER_PORT`) и живёт в сети `shop` под алиасом
+`STOREFRONT_ALIAS` — Caddy проксирует на него, как на nginx старой витрины,
+**Caddyfile менять не нужно**. Healthcheck: `GET /api/healthz`.
 
-Healthcheck: `GET /api/healthz`.
+Для прямого доступа без Caddy: `docker compose -f docker-compose.prod.yml -f
+docker-compose.publish.yml --env-file .env.prod up -d` (порт `UI_PUBLISH`).
+
+## Миграция в один клик (замена старой Vite-витрины)
+
+На сервере, в каталоге этого репозитория:
+
+```bash
+./scripts/migrate-to-next.sh              # найдёт ../server-shop-sp-ui сам
+./scripts/migrate-to-next.sh --dry-run    # показать план без действий
+```
+
+Скрипт сам: конвертирует `.env.prod` старой витрины (VITE_* → NEXT_*) →
+деплоит Next-контейнер под canary-алиасом (сайт продолжает работать) →
+останавливает старый контейнер → пересоздаёт Next с прод-алиасом (Caddy
+upstream переключается) → внешний smoke → **автовой старой витрины при
+провале**. Опции: `--old-ui <path>`, `--keep-images`.
+
+Очистка старой витрины (контейнеры/образы/кеш) отдельно:
+
+```bash
+./scripts/cleanup-old-ui.sh --images          # контейнеры + образ + dangling
+./scripts/cleanup-old-ui.sh --images --all-tags
+./scripts/cleanup-old-ui.sh --dry-run
+```
+
+## CI/CD (GitHub)
+
+| Workflow | Что делает |
+|---|---|
+| `CI` (push/PR) | `npm run typecheck` + `next build` |
+| `Images` (push main/tag v*) | GHCR `server-shop-sp-next` с build-args из repository Variables: `NEXT_PUBLIC_API_BASE_URL`, `NEXT_PUBLIC_MEDIA_BASE_URL`, `API_BASE_URL`, `APP_URL` |
+| `Deploy` (tag v*/manual) | SSH → `scripts/update.sh` (сборка на сервере или pull из GHCR по `DEPLOY_STRATEGY`; smoke + автооткат) |
+
+Secrets для Deploy: `DEPLOY_HOST`, `DEPLOY_USER`, `DEPLOY_SSH_KEY`,
+`DEPLOY_PATH` (каталог этого репо на сервере). VM-lock (`/tmp/server-shop-deploy.lock`)
+защищает от гонки с соседними витринами на той же VPS.
+
+⚠️ `NEXT_PUBLIC_*` вшиваются в бандл **на этапе build** — смена значения =
+пересборка образа (в отличие от `API_BASE_URL`/`APP_URL`, которые читаются
+из env контейнера в рантайме).
 
 ## Структура
 

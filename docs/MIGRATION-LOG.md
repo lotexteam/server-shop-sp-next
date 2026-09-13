@@ -150,11 +150,50 @@
   `@fontsource/roboto-condensed/files`, preload критичных.
 - titleFromPath в sale-ui шире (proposal и др.) — перенести полный список.
 
+## CI/CD + миграция в один клик (Ф5/Ф6-инструменты)
+
+Ключевое архитектурное решение: **Caddy не трогаем**. Caddy проксирует на
+сетевой алиас `shop_storefront:80` (см. server-shop/docker/caddy/Caddyfile.example),
+поэтому Next-контейнер слушает **:80** (compose `PORT=80`, standalone server.js) —
+полная совместимость с upstream старого nginx. Переключение витрины = смена
+владельца алиаса в сети `shop`.
+
+Добавлено:
+
+- `.github/workflows/ci.yml` — typecheck + build (NEXT_PUBLIC_* env для сборки).
+- `.github/workflows/images.yml` — GHCR `server-shop-sp-next`; build-args из
+  repository Variables `NEXT_PUBLIC_API_BASE_URL` / `NEXT_PUBLIC_MEDIA_BASE_URL` /
+  `API_BASE_URL` / `APP_URL` (⚠️ это НОВЫЕ имена переменных — в старом репо
+  были VITE_*; завести в Settings → Secrets and variables → Actions → Variables).
+- `.github/workflows/deploy.yml` — SSH → update.sh (копия схемы sp-ui).
+- `scripts/lib-github.sh` — копия из sp-ui без изменений.
+- `scripts/update.sh` — адаптация под Next: smoke `wget :80/api/healthz` +
+  `<title` в SSR-HTML + grep API-URL в `.next/static` (ловим образ с чужим
+  NEXT_PUBLIC_ конфигом); внешний smoke по `APP_URL`.
+- `scripts/migrate-to-next.sh` — **один клик**: конвертация старого `.env.prod`
+  (VITE_*→NEXT_*, копия GH_TOKEN/алиаса/сети) → canary-деплой под
+  `sp-next-canary` (прод продолжает работать) → `compose down` старой витрины →
+  `up` Next с прод-алиасом → внешний smoke → **автовой старой витрины при
+  провале**. `--dry-run`, `--old-ui`, `--keep-images`.
+- `scripts/cleanup-old-ui.sh` — очистка старой витрины: контейнеры (compose
+  down по проекту старого репо + label-фильтр), образы (`--images`, тег из
+  `.deploy-state`; `--all-tags` — все), dangling-слои, билд-кеш. Не трогает
+  сеть `shop` и чужие проекты. `--dry-run`.
+- `docker-compose.prod.yml` переписан: PORT=80, без `ports:` (Caddy-only,
+  как у sp-ui), серверные env (`API_BASE_URL`, `APP_URL`) — runtime;
+  `docker-compose.publish.yml` — порт-override для прямого доступа.
+- `.env.prod.example` с комментарием о «запечённых» NEXT_PUBLIC_*.
+
+Синтаксис-проверки: `bash -n` всех 4 скриптов — OK; js-yaml для 2 compose +
+3 workflows — OK. Docker-валидация compose (`docker compose config`) — на
+сервере при первом деплое (локально docker отсутствует).
+
 ## Осталось (Ф6–Ф8 — на сервере, с живым бэкендом)
 
-- [ ] CI: GHCR publish + update.sh (по образцу sp-ui workflow).
-- [ ] Параллельная эксплуатация на тестовом порту/поддомене, SEO-паритет
-      curl'ом против SPA (OG/canonical/JSON-LD/product:price), скриншот-
-      сравнение по ~30 URL.
-- [ ] Переключение алиаса в Caddy (STOREFRONT_ALIAS), наблюдение 7 дней.
-- [ ] Архивация server-shop-sp-ui.
+- [ ] Завести GitHub Variables (NEXT_PUBLIC_*) + Secrets (DEPLOY_*) в новом репо.
+- [ ] Параллельная эксплуатация: `docker compose -f docker-compose.prod.yml -f
+      docker-compose.publish.yml up -d` на тестовом порту; SEO-паритет curl'ом
+      против SPA (OG/canonical/JSON-LD/product:price), скриншот-сравнение.
+- [ ] Переключение: `./scripts/migrate-to-next.sh` (автовой встроен).
+- [ ] Наблюдение 7 дней → `./scripts/cleanup-old-ui.sh --images` → архивация
+      server-shop-sp-ui.

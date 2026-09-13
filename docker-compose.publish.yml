@@ -1,0 +1,8 @@
+# Override к docker-compose.prod.yml для публикации порта наружу
+# (в проде за Caddy этого файла нет; для прямого доступа/тестов):
+#   docker compose -f docker-compose.prod.yml -f docker-compose.publish.yml up -d
+# Порт контейнера — 80 (см. CONTAINER_PORT в prod-файле).
+services:
+  web:
+    ports:
+      - "127.0.0.1:${UI_PUBLISH:-3100}:80"
