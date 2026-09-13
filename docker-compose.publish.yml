@@ -2,7 +2,16 @@
 # (в проде за Caddy этого файла нет; для прямого доступа/тестов):
 #   docker compose -f docker-compose.prod.yml -f docker-compose.publish.yml up -d
 # Порт контейнера — 80 (см. CONTAINER_PORT в prod-файле).
+#
+# UI_PUBLISH — ПОЛНАЯ спека публикации (как в server-shop-sp-ui):
+#   "3100"              → 0.0.0.0:3100
+#   "127.0.0.1:3100"    → только loopback
+#   "172.17.0.1:5174"   → только docker-bridge gateway (direct-http /
+#                         multi-instance: чужой Caddy ходит через 172.17.0.1).
+# Захардкоженный префикс "127.0.0.1:" здесь ломал спеку до
+# "127.0.0.1:172.17.0.1:5174:80" (invalid IP address) и валил ЛЮБУЮ
+# compose-команду — pull и build (см. docs/ai-agent в server-shop).
 services:
   web:
     ports:
-      - "127.0.0.1:${UI_PUBLISH:-3100}:80"
+      - "${UI_PUBLISH:-127.0.0.1:3100}:80"
