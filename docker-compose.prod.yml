@@ -1,0 +1,46 @@
+# COMPOSE_PROJECT_NAME / STOREFRONT_CONTAINER_NAME / SHOP_NETWORK must be
+# уникальны на инстанс, если несколько развёртываний делят одну VPS
+# (как в docker-compose.prod.yml витрины server-shop-sp-ui).
+name: ${COMPOSE_PROJECT_NAME:-server-shop-sp-next}
+
+services:
+  web:
+    container_name: ${STOREFRONT_CONTAINER_NAME:-server-shop-sp-next-web}
+    image: ghcr.io/${GITHUB_REPOSITORY_OWNER:-local}/server-shop-sp-next:${IMAGE_TAG:-latest}
+    pull_policy: missing
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-http://127.0.0.1:8080/api/v1}
+        NEXT_PUBLIC_MEDIA_BASE_URL: ${NEXT_PUBLIC_MEDIA_BASE_URL:-}
+        API_BASE_URL: ${API_BASE_URL:-http://127.0.0.1:8080/api/v1}
+        APP_URL: ${APP_URL:-http://localhost:3000}
+    ports:
+      - "127.0.0.1:${STOREFRONT_PORT:-3100}:3000"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/api/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    # SSR-рантайм тяжелее nginx-статики: 512m вместо 256m (план Ф5).
+    mem_limit: 512m
+    cpus: 0.75
+    pids_limit: 160
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      shop:
+        aliases:
+          - ${STOREFRONT_ALIAS:-server-shop-sp-next-storefront}
+
+networks:
+  shop:
+    # Та же сеть, что Caddy в server-shop, иначе HTTPS → 502.
+    name: ${SHOP_NETWORK:-server-shop_shop}
+    external: true
