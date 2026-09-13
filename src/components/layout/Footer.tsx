@@ -14,7 +14,9 @@ import { ConsentCheckbox } from "@/components/consent/ConsentCheckbox";
 import { logConsent, reopenConsentSettings } from "@/lib/consent/consent";
 import { apiSubscribeNewsletter, StorefrontApiError } from "@/lib/api";
 import type { MenuNavItem } from "@/lib/api";
-import headerLogo from "@/assets/header_logo.svg";
+/* Next/Turbopack: SVG-импорт отдаёт объект, а не URL (в отличие от Vite) —
+ * файл лежит в public/ и адресуется строкой. */
+const headerLogo = "/header_logo.svg";
 
 /** Fallback, пока menus/footer не заполнен в админке: «Компания/Информация» — посты блога (рубрика info). */
 const FALLBACK_FOOTER_COLS: MenuNavItem[] = [

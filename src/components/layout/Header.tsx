@@ -17,8 +17,10 @@ import { useMenu } from "@/hooks/useMenu";
 import { useSiteSettings } from "@/hooks/useSiteSettings";
 import { cn } from "@/lib/utils";
 import { categoryHref } from "@/lib/api";
-/* Fallback when cms.site.logo_url is empty */
-import headerLogo from "@/assets/header_logo.svg";
+/* Fallback when cms.site.logo_url is empty.
+ * Next/Turbopack: SVG-импорт отдаёт объект, а не URL (в отличие от Vite) —
+ * файл лежит в public/ и адресуется строкой. */
+const headerLogo = "/header_logo.svg";
 
 const HOVER_CLOSE_MS = 180;
 

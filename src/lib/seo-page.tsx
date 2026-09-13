@@ -4,13 +4,12 @@
  * Повторяет семантику клиентского DocumentHead из SPA:
  *  - /seo/document — источник истины для title/description/robots/OG/
  *    canonical/JSON-LD (тот же контракт, что бот-HTML SeoDocumentBuilder);
- *  - redirect_to → permanentRedirect (P0.2: человек уходит на канонический
- *    адрес; в SPA это был клиентский Navigate, бот-HTML отдавал 301);
+ *  - redirect_to → страница вызывает redirect()/permanentRedirect() в теле
+ *    (НЕ из generateMetadata — redirect-функции там не поддерживаются);
  *  - фолбэки по пути (titleFromPath) + site-тайтл с суффиксом.
  */
 
 import type { Metadata } from "next";
-import { permanentRedirect } from "next/navigation";
 import {
   fetchSeoDocumentServer,
   fetchSiteServer,
@@ -107,15 +106,16 @@ export type PageSeoResult = {
   metadata: Metadata;
   /** JSON-LD блоки SeoDocument — рендерятся страницей в SSR-HTML. */
   jsonld: unknown[];
+  /**
+   * Легаси-редирект из SeoDocument (смена slug и т.п.). Возвращает цель
+   * вместо того, чтобы бросать permanentRedirect прямо здесь: redirect из
+   * generateMetadata в Next 16 не поддерживается и роняет рендер
+   * (инцидент «Ошибка рендеринга» на /product?edit=…). Страница сама
+   * вызывает redirect()/permanentRedirect() в своём теле.
+   */
+  redirectTo: string | null;
 };
 
-/**
- * Главная точка генерации метаданных страницы.
- *
- * @param path полный путь с query (pathname + search) — как в SPA
- *             DocumentHeadInner (const path = pathname + search).
- * @param pathnameForFallback чистый pathname для фолбэк-тайтлов.
- */
 export async function pageSeo(
   path: string,
   pathnameForFallback?: string,
@@ -126,14 +126,12 @@ export async function pageSeo(
   ]);
 
   // Легаси-редиректы (смена slug, /catalog?category=): человек и бот
-  // уходят на канонический адрес постоянным редиректом.
+  // уходят на канонический адрес постоянным редиректом (выполняет страница).
+  let redirectTo: string | null = null;
   if (doc?.redirect_to) {
     const target = toLocalPath(doc.redirect_to);
     if (target && target !== path) {
-      // 308 Permanent Redirect — серверный эквивалент 301 из бот-HTML
-      // (RSC redirect не позволяет выбрать 301; для GET-запросов боты
-      // трактуют 308 так же, как 301).
-      permanentRedirect(target);
+      redirectTo = target;
     }
   }
 
@@ -141,12 +139,14 @@ export async function pageSeo(
     return {
       metadata: seoDocToMetadata(doc, site),
       jsonld: Array.isArray(doc.jsonld) ? doc.jsonld : [],
+      redirectTo,
     };
   }
 
   return {
     metadata: fallbackMetadata(pathnameForFallback || path, site),
     jsonld: [],
+    redirectTo,
   };
 }
 
