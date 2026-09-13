@@ -2,7 +2,7 @@
 # ─────────────────────────────────────────────────────────────────────────────
 # ОЧИСТКА СТАРОЙ VITE-ВИТРИНЫ (server-shop-sp-ui): контейнеры, образы, кеш.
 # Запускать ПОСЛЕ успешного переключения на server-shop-sp-next
-# (или scripts/migrate-to-next.sh вызовет сам).
+# (или scripts/update.sh --migrate вызовет сам).
 #
 #   ./scripts/cleanup-old-ui.sh                       # только контейнеры
 #   ./scripts/cleanup-old-ui.sh --images              # + образы старой витрины
@@ -28,7 +28,7 @@ while [ $# -gt 0 ]; do
     --images) WITH_IMAGES=1; shift ;;
     --all-tags) ALL_TAGS=1; shift ;;
     --dry-run) DRY_RUN=1; shift ;;
-    --help|-h) sed -n '2,16p' "$0"; exit 0 ;;
+    --help|-h) sed -n '2,14p' "$0"; exit 0 ;;
     *) echo "Unknown: $1" >&2; exit 1 ;;
   esac
 done

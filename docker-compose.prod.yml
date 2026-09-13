@@ -45,7 +45,7 @@ services:
         aliases:
           # Прод-алиас (= STOREFRONT_ALIAS старой витрины, напр. shop_storefront)
           # занимает Caddy-upstream. До переключения запускайте с canary-алиасом
-          # (scripts/migrate-to-next.sh делает это сам).
+          # (scripts/update.sh --migrate делает это сам).
           - ${STOREFRONT_ALIAS:-${COMPOSE_PROJECT_NAME:-server-shop-sp-next}-storefront}
 
 networks:

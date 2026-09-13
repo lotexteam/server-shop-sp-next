@@ -1,16 +1,32 @@
 #!/usr/bin/env bash
-# Деплой на сервере: синхронизация кода → контейнер (сборка на сервере по
-# умолчанию — релиз не ждёт CI; опция pull — CI-образ из GHCR) → smoke → откат.
-# Адаптация update.sh из server-shop-sp-ui под Next.js standalone:
-#   - контейнер слушает :80 (CONTAINER_PORT), healthcheck /api/healthz;
-#   - smoke проверяет SSR-HTML (title) и API-URL в клиентском бандле
-#     .next/static (NEXT_PUBLIC_* вшиваются на этапе build);
-#   - внешний smoke — по APP_URL.
+# Единая точка деплоя server-shop-sp-next + миграция со старой Vite-витрины.
+#
+# Обычное обновление (после миграции — сам обновляет Next-витрину):
+#   ./scripts/update.sh                              # синк ветки + latest
+#   ./scripts/update.sh --ref-type tag --ref v1.2.3  # тег-релиз
+#   ./scripts/update.sh --no-sync                    # без git (deploy.sh)
 #   CI:      ./scripts/update.sh --ref-type tag --ref v1.2.3
 #            ./scripts/update.sh --ref-type branch --ref main   (workflow_dispatch)
-#   Вручную: ./scripts/update.sh            (синк текущей ветки + latest)
-#            ./scripts/update.sh --no-sync  (без git; вызывает scripts/deploy.sh)
-# Стратегия — DEPLOY_STRATEGY в .env.prod: build (по умолчанию) | pull.
+#
+# Миграция с server-shop-sp-ui (Vite SPA) — один клик:
+#   ./scripts/update.sh --migrate                    # авто-поиск ../server-shop-sp-ui
+#   ./scripts/update.sh --migrate --old-ui /path     # явно
+#   ./scripts/update.sh --migrate --dry-run          # показать план
+#   ./scripts/update.sh --migrate --keep-images      # не удалять образы старой
+#
+# АВТООПРЕДЕЛЕНИЕ: если .env.prod отсутствует, но рядом найдена старая
+# витрина с .env.prod — update.sh сам переходит в режим миграции (кроме
+# тег-деплоя из CI — там миграция должна быть явной). После миграции
+# .env.prod существует, и все последующие вызовы (вкл. Deploy workflow)
+# обновляют Next-витрину без каких-либо флагов.
+#
+# Миграция делает: конвертацию VITE_*→NEXT_* → canary-деплой (прод не
+# тронут) → стоп старой витрины → Next с прод-алиасом (Caddyfile не
+# меняется: Next слушает :80, как nginx старой витрины) → smoke →
+# автовой при провале → очистка старых контейнеров (cleanup-old-ui.sh).
+#
+# Стратегия обновлений — DEPLOY_STRATEGY в .env.prod:
+#   build (по умолчанию) | pull | pull-or-build.
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # shellcheck disable=SC1091
@@ -20,6 +36,10 @@ cd "$ROOT"
 REF_TYPE="branch"
 REF_NAME=""
 NO_SYNC=0
+MIGRATE=0
+OLD_UI=""
+DRY_RUN=0
+KEEP_IMAGES=0
 while [ $# -gt 0 ]; do
   case "$1" in
     --ref-type) REF_TYPE="${2:-branch}"; shift 2 ;;
@@ -27,12 +47,18 @@ while [ $# -gt 0 ]; do
     --ref) REF_NAME="${2:-}"; shift 2 ;;
     --ref=*) REF_NAME="${1#--ref=}"; shift ;;
     --no-sync) NO_SYNC=1; shift ;;
-    --help|-h) sed -n '2,14p' "$0"; exit 0 ;;
+    --migrate) MIGRATE=1; shift ;;
+    --old-ui) OLD_UI="${2:-}"; shift 2 ;;
+    --old-ui=*) OLD_UI="${1#--old-ui=}"; shift ;;
+    --dry-run) DRY_RUN=1; shift ;;
+    --keep-images) KEEP_IMAGES=1; shift ;;
+    --help|-h) sed -n '2,29p' "$0"; exit 0 ;;
     *) echo "Unknown: $1" >&2; exit 1 ;;
   esac
 done
 
-# Общий VM lock (межрепозиторный — GitHub concurrency не защищает соседнюю витрину)
+# Общий VM lock — и для миграции, и для деплоя (межрепозиторная гонка с
+# соседними витринами на той же VPS; GitHub concurrency её не покрывает).
 LOCK_DIR="${DEPLOY_LOCK_DIR:-/tmp/server-shop-deploy.lock}"
 _vm_lock() {
   _t=0
@@ -42,10 +68,18 @@ _vm_lock() {
     [ "$_t" -eq 0 ] && echo "  Жду VM lock (занят: $_o)…"
     sleep 5; _t=$((_t + 5))
   done
-  printf '%s update %s %s' "$(date -u +%FT%TZ)" "${COMPOSE_PROJECT_NAME:-?}" "$$" >"$LOCK_DIR/owner" 2>/dev/null || true
+  printf '%s %s %s %s' "$(date -u +%FT%TZ)" "$([ "$MIGRATE" -eq 1 ] && echo migrate || echo update)" "${COMPOSE_PROJECT_NAME:-?}" "$$" >"$LOCK_DIR/owner" 2>/dev/null || true
   trap 'rm -f "$LOCK_DIR/owner" 2>/dev/null; rmdir "$LOCK_DIR" 2>/dev/null || true' EXIT INT TERM
 }
 _vm_lock || exit 1
+
+# ── Режим миграции ──────────────────────────────────────────────────────────
+if [ "$MIGRATE" -eq 1 ]; then
+  # shellcheck disable=SC1091
+  . "$ROOT/scripts/lib-migrate.sh"
+  do_migrate
+  exit $?
+fi
 
 if [ -f .env.prod ]; then
   load_prod_env "$ROOT"
@@ -54,10 +88,27 @@ elif [ -f .env ]; then
 fi
 
 if [ ! -f .env.prod ]; then
-  echo "Нет .env.prod — это enterprise-скрипт. Сначала: ./scripts/configure.sh --mode enterprise или scripts/migrate-to-next.sh (миграция сгенерирует его из старой витрины)" >&2
+  # АВТООПРЕДЕЛЕНИЕ: первого запуска ещё не было. Если рядом живёт старая
+  # витрина — это миграция в один клик; тег-деплой из CI не мигрирует сам
+  # (миграция — осознанное действие с переключением прода).
+  # shellcheck disable=SC1091
+  . "$ROOT/scripts/lib-migrate.sh"
+  if [ "$REF_TYPE" = "tag" ]; then
+    echo "✗ Нет .env.prod и передан --ref-type tag — тег-деплой не запускает миграцию сам." >&2
+    echo "  Сначала мигрируйте вручную: ./scripts/update.sh --migrate" >&2
+    exit 1
+  fi
+  if detect_old_ui >/dev/null; then
+    echo "==> .env.prod отсутствует, но найдена старая Vite-витрина → режим миграции."
+    echo "    (явный вызов: ./scripts/update.sh --migrate [--dry-run] [--old-ui <path>])"
+    do_migrate
+    exit $?
+  fi
+  echo "Нет .env.prod — это enterprise-скрипт. Сначала: ./scripts/configure.sh --mode enterprise или ./scripts/update.sh --migrate (перенесёт конфиг со старой витрины)" >&2
   exit 1
 fi
 
+# ── Обычное обновление Next-витрины (миграция уже была или не нужна) ───────
 COMPOSE=(docker compose -f docker-compose.prod.yml --env-file .env.prod)
 if [ "${PUBLISH_UI:-}" = y ] || [ "${PUBLISH_UI:-}" = true ]; then
   if [ -f docker-compose.publish.yml ]; then

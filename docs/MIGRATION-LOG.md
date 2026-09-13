@@ -170,11 +170,19 @@
 - `scripts/update.sh` — адаптация под Next: smoke `wget :80/api/healthz` +
   `<title` в SSR-HTML + grep API-URL в `.next/static` (ловим образ с чужим
   NEXT_PUBLIC_ конфигом); внешний smoke по `APP_URL`.
-- `scripts/migrate-to-next.sh` — **один клик**: конвертация старого `.env.prod`
-  (VITE_*→NEXT_*, копия GH_TOKEN/алиаса/сети) → canary-деплой под
-  `sp-next-canary` (прод продолжает работать) → `compose down` старой витрины →
-  `up` Next с прод-алиасом → внешний smoke → **автовой старой витрины при
-  провале**. `--dry-run`, `--old-ui`, `--keep-images`.
+- `scripts/lib-migrate.sh` — логика миграции (библиотека, вызывается из update.sh).
+- **`scripts/update.sh --migrate`** — **один клик** (миграция интегрирована в
+  единый деплой-скрипт): конвертация старого `.env.prod` (VITE_*→NEXT_*, копия
+  GH_TOKEN/алиаса/сети) → canary-деплой под `sp-next-canary` (прод продолжает
+  работать) → `compose down` старой витрины → `up` Next с прод-алиасом →
+  внешний smoke → **автовой старой витрины при провале** → запись
+  `.deploy-state` (цель будущих откатов). Флаги: `--old-ui`, `--dry-run`,
+  `--keep-images`.
+  **Автоопределение:** `update.sh` без флагов при отсутствии `.env.prod` сам
+  переходит в режим миграции, если рядом найдена старая витрина (кроме
+  тег-деплоя из CI — там миграция должна быть явной: `--migrate`).
+  **После миграции** обычные вызовы `update.sh` (вкл. Deploy workflow)
+  автоматически обновляют Next-витрину. `migrate-to-next.sh` — compat-обёртка.
 - `scripts/cleanup-old-ui.sh` — очистка старой витрины: контейнеры (compose
   down по проекту старого репо + label-фильтр), образы (`--images`, тег из
   `.deploy-state`; `--all-tags` — все), dangling-слои, билд-кеш. Не трогает
@@ -194,6 +202,6 @@
 - [ ] Параллельная эксплуатация: `docker compose -f docker-compose.prod.yml -f
       docker-compose.publish.yml up -d` на тестовом порту; SEO-паритет curl'ом
       против SPA (OG/canonical/JSON-LD/product:price), скриншот-сравнение.
-- [ ] Переключение: `./scripts/migrate-to-next.sh` (автовой встроен).
+- [ ] Переключение: `./scripts/update.sh --migrate` (автовой встроен).
 - [ ] Наблюдение 7 дней → `./scripts/cleanup-old-ui.sh --images` → архивация
       server-shop-sp-ui.
