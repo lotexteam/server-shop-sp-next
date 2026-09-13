@@ -59,8 +59,19 @@ function seoDocToMetadata(
 
   const ogTitle = doc.title || undefined;
   const ogDescription = doc.description || undefined;
+  // Next 16 валидирует openGraph.type и падает на значении вне whitelist
+  // ('Invalid OpenGraph type: product' — инцидент «Ошибка рендеринга» на
+  // страницах конфигураторов, og_type=product из SeoDocumentBuilder).
+  // Разрешённые: website | article | book | profile | music.* | video.*.
+  const OG_ALLOWED = new Set([
+    "website", "article", "book", "profile",
+    "music.song", "music.album", "music.playlist", "music.radio_station",
+    "video.movie", "video.episode", "video.tv_show", "video.other",
+  ]);
+  const ogTypeRaw = (doc.og_type || "website").trim();
+  const ogType = OG_ALLOWED.has(ogTypeRaw) ? ogTypeRaw : "website";
   meta.openGraph = {
-    type: (doc.og_type as "website" | "article" | undefined) || "website",
+    type: ogType as "website" | "article",
     siteName: doc.brand || site?.brand || undefined,
     title: ogTitle,
     description: ogDescription,
@@ -69,6 +80,13 @@ function seoDocToMetadata(
       ? { images: [{ url: doc.image, alt: doc.image_alt || undefined }] }
       : {}),
   };
+  // Нестандартный og:type (например, product) отдаём прямым метатегом в
+  // other — соцсети читают его, валидатор Next не видит. Прямой тег
+  // дублирует сгенерированный из whitelist — оставляем только «честный».
+  const other: Record<string, string> = {};
+  if (ogTypeRaw !== ogType) {
+    other["og:type"] = ogTypeRaw;
+  }
 
   meta.twitter = {
     card: doc.image ? "summary_large_image" : "summary",
@@ -78,7 +96,6 @@ function seoDocToMetadata(
   };
 
   // product:price:* — применяется теми же ключами, что в applyDocument SPA.
-  const other: Record<string, string> = {};
   if (doc.price_amount && doc.price_currency) {
     other["product:price:amount"] = doc.price_amount;
     other["product:price:currency"] = doc.price_currency;
