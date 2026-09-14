@@ -274,9 +274,15 @@
   Performance **68**, FCP 1.0 c, LCP 2.9 c, TBT 180 мс, SI 2.8 c, **CLS 0.989**.
   Главный вклад — CLS: Lighthouse называет `<main class="flex-1">` (0.913) и
   `<div class="hero-fade-in min-h-0">` (0.077, источник — веб-шрифт
-  `inter-latin-ext-wght-normal.woff2`). Шрифты уже `font-display: optional`, значит
-  это не «подмена Inter», а позднее подключение latin-ext-подмножества (83 КБ, не
-  в preload) — открытый вопрос, нужен трейс layout-shift с реального рендера.
+  `inter-latin-ext-wght-normal.woff2`). **Причина найдена** трейсом layout-shift
+  в браузере: `DIV.min-h-0.max-w-2xl` (блок героя) уехал вверх на 104 px; знак
+  рубля «₽» (U+20BD) есть только в подмножестве latin-ext (диапазон U+20AD-20C0;
+  в latin — только «€» U+20AC, в cyrillic его нет), файл 83 КБ не был в preload и
+  приезжал после первого кадра, подменяя глиф в ценах. Лечение: `@font-face`
+  latin-ext удалён (₽ рисуется системным фолбэком с первого кадра, −83 КБ на
+  страницу); постер героя переведён на `<picture><source media>` + два
+  media-preload вместо `srcset`+`sizes="100vw"` (Chrome писал «/main-poster.webp
+  was preloaded but not used» — файл качался впустую).
   Исправлено: старт hero-видео (`/main.webm`, **1471 КиБ**) перенесён с
   DOMContentLoaded+500 мс на `window.load`+пауза — в lab-трейсе PSI видео грузилось,
   потому что Lighthouse маскирует `navigator.webdriver` и UA обычный мобильный,
