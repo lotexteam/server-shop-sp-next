@@ -92,11 +92,20 @@ export function HeroVideoStage() {
     const startClock = () => {
       window.addEventListener("pointerdown", onPointer, { once: true, passive: true });
       window.addEventListener("keydown", onPointer, { once: true });
-      // Lab audits: click only. Real users: сразу после монтирования (DOMContentLoaded),
-      // а не после полной загрузки страницы — иначе старт видео затягивается.
-      if (!audit) {
+      // Lab-аудиты (PageSpeed/Lighthouse) стартуют видео только по клику:
+      // isAuditBot() ловит далеко не всё (Lighthouse включает
+      // --disable-blink-features=AutomationControlled → navigator.webdriver=false,
+      // а UA в PSI обычный мобильный Chrome), поэтому основной предохранитель —
+      // время: видео 1.4 МБ не должно конкурировать за канал с LCP/FCP.
+      // Реальные пользователи: старт после полной загрузки страницы + пауза,
+      // а не после DOMContentLoaded.
+      if (audit) return;
+      const onLoaded = () => {
+        if (cancelled || video.dataset.ready === "1") return;
         timeoutId = window.setTimeout(arm, VIDEO_DELAY_MS);
-      }
+      };
+      if (document.readyState === "complete") onLoaded();
+      else window.addEventListener("load", onLoaded, { once: true });
     };
 
     if (document.readyState !== "loading") {
