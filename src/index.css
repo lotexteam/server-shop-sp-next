@@ -449,6 +449,74 @@
   animation: hero-bounce 1.6s ease-in-out infinite;
 }
 
+/* ── Анимации входа/выхода без framer-motion (P1.2: библиотека убрана из бандла) ──
+   Вход — CSS-анимация по классу; выход — класс *-out, который успевает
+   проиграть, пока хук usePresence держит элемент в DOM. */
+@keyframes menu-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+.menu-in { animation: menu-in 0.16s ease-out both; }
+@keyframes menu-out {
+  from { opacity: 1; transform: none; }
+  to { opacity: 0; transform: translateY(6px); }
+}
+.menu-out { animation: menu-out 0.16s ease-in both; }
+
+@keyframes toast-in {
+  from { opacity: 0; transform: translateX(40px) scale(0.95); }
+  to { opacity: 1; transform: none; }
+}
+.toast-in { animation: toast-in 0.22s cubic-bezier(0.22, 1, 0.36, 1) both; }
+@keyframes toast-out {
+  from { opacity: 1; transform: none; }
+  to { opacity: 0; transform: translateX(40px) scale(0.9); }
+}
+.toast-out { animation: toast-out 0.2s ease-in both; }
+
+@keyframes bar-in {
+  from { opacity: 0; transform: translateY(100px); }
+  to { opacity: 1; transform: none; }
+}
+.bar-in { animation: bar-in 0.24s cubic-bezier(0.22, 1, 0.36, 1) both; }
+@keyframes bar-out {
+  from { opacity: 1; transform: none; }
+  to { opacity: 0; transform: translateY(100px); }
+}
+.bar-out { animation: bar-out 0.2s ease-in both; }
+
+@keyframes pop-in {
+  from { opacity: 0; transform: scale(0.9); }
+  to { opacity: 1; transform: none; }
+}
+.pop-in { animation: pop-in 0.4s ease-out both; }
+
+/* Слайды «Почему мы»: направление входа вместо framer-вариантов */
+@keyframes story-enter-next {
+  from { opacity: 0; transform: translateX(56px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes story-enter-prev {
+  from { opacity: 0; transform: translateX(-56px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes story-enter-lg {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: none; }
+}
+.story-enter-next { animation: story-enter-next 0.28s ease-out both; }
+.story-enter-prev { animation: story-enter-prev 0.28s ease-out both; }
+.story-enter-lg { animation: story-enter-lg 0.28s ease-out both; }
+
+@media (prefers-reduced-motion: reduce) {
+  .menu-in, .menu-out, .toast-in, .toast-out, .bar-in, .bar-out, .pop-in,
+  .story-enter-next, .story-enter-prev, .story-enter-lg {
+    animation: none;
+    opacity: 1;
+    transform: none;
+  }
+}
+
 /* ── Блог: сетка PDF-плиток в теле статьи (HTML-блок .blog-pdf-grid) ── */
 .blog-pdf-grid {
   display: grid;

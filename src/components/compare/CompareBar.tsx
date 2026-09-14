@@ -3,11 +3,11 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { AnimatePresence, motion } from "framer-motion";
 import { GitCompare, X, ArrowRight, Trash2 } from "lucide-react";
 import { useShop, MAX_COMPARE } from "@/store/shop";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { usePresence } from "@/hooks/usePresence";
 import { resolveProductsByIds } from "@/hooks/useCatalogProducts";
 import type { Product } from "@/data/types";
 
@@ -17,6 +17,8 @@ export function CompareBar() {
   const [items, setItems] = useState<Product[]>([]);
   const onComparePage = pathname.includes("/compare");
   const visible = compare.length > 0 && !onComparePage;
+  /** Панель доживает 200 мс после скрытия, чтобы сыграл CSS-выход */
+  const { mounted, closing } = usePresence(visible, 200);
 
   useEffect(() => {
     let cancelled = false;
@@ -29,14 +31,13 @@ export function CompareBar() {
   }, [compare]);
 
   return (
-    <AnimatePresence>
-      {visible && (
-        <motion.div
-          initial={{ y: 100, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          exit={{ y: 100, opacity: 0 }}
-          transition={{ type: "spring", stiffness: 380, damping: 32 }}
-          className="pointer-events-none fixed inset-x-0 bottom-0 z-50 p-3 sm:p-4"
+    <>
+      {mounted && (
+        <div
+          className={cn(
+            "pointer-events-none fixed inset-x-0 bottom-0 z-50 p-3 sm:p-4",
+            closing ? "bar-out" : "bar-in",
+          )}
         >
           <div className="pointer-events-auto mx-auto flex max-w-4xl flex-col gap-3 rounded-2xl border border-border bg-card/95 p-3 shadow-elevated backdrop-blur-lg sm:flex-row sm:items-center sm:gap-4 sm:p-4">
             <div className="flex min-w-0 flex-1 items-center gap-3">
@@ -107,8 +108,8 @@ export function CompareBar() {
               </span>
             </p>
           )}
-        </motion.div>
+        </div>
       )}
-    </AnimatePresence>
+    </>
   );
 }

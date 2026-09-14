@@ -230,6 +230,26 @@
   должны быть мгновенными).
 - ✅ **P1.4** клиентский `usePageMeta` убран отовсюду, кроме `NotFoundPage`.
 - ✅ Комментарии на китайском, оставленные подагентами, переписаны на русский.
-- ⏳ Осталось: рантайм-верификация curl'ом бот-UA на стенде (локально нет API/Docker);
-  P1.1 ISR, P1.2 бандл (framer-motion), P1.5 шрифты; настоящий 410 (сейчас 404+noindex).
+- ✅ **P1.2 framer-motion убран из клиентского бандла (sp-next).** Библиотека
+  импортировалась в 7 клиентских файлов, включая горячий путь (`ProductCard` на
+  сетках каталога/главной, `layout/Header`, `layout/MegaMenu`, `ui/toast`), и
+  попадала в бандл каждой страницы. Все анимации переведены на CSS:
+  - `ProductCard` — hover-подъём `hover:-translate-y-1.5` + `transition-[transform,box-shadow]`;
+  - `MegaMenu`/`CompareBar`/`toast` — классы `menu-in/out`, `bar-in/out`, `toast-in/out`
+    (`src/index.css`), выход играет, пока элемент держит в DOM новый хук
+    `src/hooks/usePresence.ts` (у тостов — свой список `leaving`);
+  - `WhyStorySection` — прогресс-полоса и активный слайд на lg считаются одним
+    rAF-слушателем скролла (ширина пишется прямо в DOM, без ре-рендера на пиксель),
+    вход слайда — CSS-анимация по `key` с направлением из `dir`;
+  - `NotFoundPage` — `pop-in`.
+  Новые классы уважают `prefers-reduced-motion`. Проверка: `tsc --noEmit` — 0 ошибок,
+  `next build` — «Compiled successfully», в свежих чанках `.next/static/chunks`
+  (35 файлов) **0** совпадений по `framer-motion|data-projection-id|whileHover|AnimatePresence`.
+  Пакет `framer-motion` оставлен в `package.json` (без импортов он не попадает в
+  граф сборки; удаление зависимости требует регенерации lock-файла).
+- ⏳ Осталось: рантайм-верификация бот-UA на стенде (локально нет API/Docker) —
+  и она **критична**: на `new.server-price.ru` Googlebot получает 404 от Laravel,
+  т.е. стенд крутит старый Caddyfile с `@bot`-роутом на удалённый `/seo/html`
+  (подробности — `server-shop/docs/SEO-PERF-NEXT-PLAN-2026-09.md`);
+  P1.1 ISR, P1.5 шрифты; настоящий 410 (сейчас 404+noindex).
 

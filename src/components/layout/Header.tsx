@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
-import { AnimatePresence } from "framer-motion";
 import { Heart, User, Menu, ChevronDown, GitCompare, Phone, Mail, Clock } from "lucide-react";
 import { SearchAutocomplete } from "../ui/search-autocomplete";
 import { Button } from "../ui/button";
@@ -14,6 +13,7 @@ import { useShop } from "@/store/shop";
 import { useCategories } from "@/hooks/useCategories";
 import { useContacts } from "@/hooks/useContacts";
 import { useMenu } from "@/hooks/useMenu";
+import { usePresence } from "@/hooks/usePresence";
 import { useSiteSettings } from "@/hooks/useSiteSettings";
 import { cn } from "@/lib/utils";
 import { categoryHref } from "@/lib/api";
@@ -89,6 +89,8 @@ export function Header() {
   const [megaOpen, setMegaOpen] = useState(false);
   /** Click keeps menu open until next click / outside / navigate */
   const [megaPinned, setMegaPinned] = useState(false);
+  /** Мега-меню остаётся в DOM 160 мс после закрытия — чтобы сыграл CSS-выход */
+  const { mounted: megaMounted, closing: megaClosing } = usePresence(megaOpen, 160);
   const [q, setQ] = useState("");
   const { favorites, compare } = useShop();
   const { categories } = useCategories();
@@ -376,14 +378,13 @@ export function Header() {
               Padding-top (not margin) bridges the gap so the pointer never
               leaves the hit-area when moving from button → panel.
             */}
-            <AnimatePresence>
-              {megaOpen && (
-                <MegaMenu
-                  onNavigate={closeMega}
-                  pinned={megaPinned}
-                />
-              )}
-            </AnimatePresence>
+            {megaMounted && (
+              <MegaMenu
+                onNavigate={closeMega}
+                pinned={megaPinned}
+                closing={megaClosing}
+              />
+            )}
           </div>
 
           <div className="min-w-0 flex-1">

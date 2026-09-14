@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { motion } from "framer-motion";
 import { ArrowRight, Box } from "lucide-react";
 import { getIcon } from "@/lib/icons";
 import { ChevronDown, ChevronUp } from "lucide-react";
@@ -98,21 +97,23 @@ function ColumnSubs({
 export function MegaMenu({
   onNavigate,
   pinned = false,
+  closing = false,
 }: {
   onNavigate?: () => void;
   pinned?: boolean;
+  /** Играет анимацию выхода: держит родитель через usePresence */
+  closing?: boolean;
 }) {
   const { categories } = useCategories();
   /** CMS: GET /menus/mega — type=category | url for featured tiles */
   const { items: featured } = useMenu("mega");
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 6 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: 6 }}
-      transition={{ duration: 0.16 }}
-      className="absolute left-0 top-full z-50 w-[min(56rem,calc(100vw-2rem))] pt-2"
+    <div
+      className={cn(
+        "absolute left-0 top-full z-50 w-[min(56rem,calc(100vw-2rem))] pt-2",
+        closing ? "menu-out" : "menu-in",
+      )}
       role="menu"
       aria-label="Категории каталога"
     >
@@ -179,6 +180,6 @@ export function MegaMenu({
           </div>
         )}
       </div>
-    </motion.div>
+    </div>
   );
 }

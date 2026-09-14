@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { motion } from "framer-motion";
 import { Heart, ShoppingCart, GitCompare, SlidersHorizontal } from "lucide-react";
 import type { Product } from "@/data/types";
 import { CONDITION_LABEL, CONDITION_TONE } from "@/data/conditions";
@@ -35,11 +34,7 @@ export function ProductCard({
     (product.slug ? favorites.includes(product.slug) : false);
 
   return (
-    <motion.article
-      whileHover={{ y: -6 }}
-      transition={{ type: "spring", stiffness: 300, damping: 24 }}
-      className="group flex h-full flex-col overflow-hidden rounded-lg border border-border bg-card shadow-card transition-shadow hover:shadow-card-hover"
-    >
+    <article className="group flex h-full flex-col overflow-hidden rounded-lg border border-border bg-card shadow-card transition-[transform,box-shadow] duration-200 ease-out hover:-translate-y-1.5 hover:shadow-card-hover">
       <div className="relative aspect-[4/3] overflow-hidden bg-secondary">
         <Link href={productPath(product)}>
           <img
@@ -160,6 +155,6 @@ export function ProductCard({
         </div>
         <StockStatus onRequest={product.onRequest || product.price == null} />
       </div>
-    </motion.article>
+    </article>
   );
 }

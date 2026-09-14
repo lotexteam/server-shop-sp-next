@@ -2,13 +2,6 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type TouchEvent } from "react";
 import {
-  motion,
-  useScroll,
-  useTransform,
-  AnimatePresence,
-  useMotionValueEvent,
-} from "framer-motion";
-import {
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
@@ -76,12 +69,6 @@ const accentStyles = {
   },
 } as const;
 
-const slideVariants = {
-  enter: (dir: number) => ({ x: dir * 56, opacity: 0 }),
-  center: { x: 0, opacity: 1 },
-  exit: (dir: number) => ({ x: dir * -56, opacity: 0 }),
-};
-
 function useIsLg() {
   const [isLg, setIsLg] = useState(
     () => typeof window !== "undefined" && window.matchMedia("(min-width: 1024px)").matches,
@@ -129,18 +116,44 @@ export function WhyStorySection() {
   const slideCount = slides.length;
   const activeRef = useRef(0);
 
-  const { scrollYProgress } = useScroll({
-    target: containerRef,
-    offset: ["start start", "end end"],
-  });
+  /**
+   * Прогресс полосы и активный слайд на lg. Раньше это считал framer-motion
+   * (useScroll + useTransform + useMotionValueEvent) — теперь один rAF-слушатель
+   * скролла: ширину полосы пишем прямо в DOM (без ре-рендера на каждый пиксель),
+   * индекс слоя — в state, с теми же гвардами (isLg, прыжок по клику).
+   *
+   * Диапазон соответствует бывшему offset ["start start", "end end"]:
+   * 0 — верх трека на верху вьюпорта, 1 — низ трека на низу вьюпорта.
+   */
+  const progressRef = useRef<HTMLDivElement>(null);
 
-  useMotionValueEvent(scrollYProgress, "change", (v) => {
-    if (!isLgRef.current || jumpingRef.current || slideCount < 1) return;
-    const idx = Math.min(slideCount - 1, Math.max(0, Math.floor(v * slideCount + 0.001)));
-    setActive((prev) => (prev === idx ? prev : idx));
-  });
-
-  const progressWidth = useTransform(scrollYProgress, [0, 1], ["0%", "100%"]);
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el || !isLg || slideCount < 1) return;
+    let raf = 0;
+    const update = () => {
+      raf = 0;
+      const rect = el.getBoundingClientRect();
+      const span = rect.height - window.innerHeight;
+      const progress = span > 0 ? Math.min(1, Math.max(0, -rect.top / span)) : 0;
+      const bar = progressRef.current;
+      if (bar) bar.style.width = `${(progress * 100).toFixed(2)}%`;
+      if (jumpingRef.current) return;
+      const idx = Math.min(slideCount - 1, Math.max(0, Math.floor(progress * slideCount + 0.001)));
+      setActive((prev) => (prev === idx ? prev : idx));
+    };
+    const onScroll = () => {
+      if (!raf) raf = requestAnimationFrame(update);
+    };
+    update();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("resize", onScroll);
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      window.removeEventListener("resize", onScroll);
+      if (raf) cancelAnimationFrame(raf);
+    };
+  }, [isLg, slideCount]);
 
   const panelHeight = sticky?.height;
   const panelTop = sticky?.top ?? 64;
@@ -258,7 +271,7 @@ export function WhyStorySection() {
       >
         <div className="absolute inset-x-0 top-0 z-20 h-1 bg-white/15">
           {isLg ? (
-            <motion.div className="h-full bg-brand-gradient" style={{ width: progressWidth }} />
+            <div ref={progressRef} className="h-full bg-brand-gradient" style={{ width: 0 }} />
           ) : (
             <div
               className="h-full bg-brand-gradient transition-[width] duration-300 ease-out"
@@ -365,64 +378,65 @@ export function WhyStorySection() {
             }}
             style={{ touchAction: "pan-y" }}
           >
-            <AnimatePresence initial={false} custom={dir}>
-              <motion.div
-                key={slide.id}
-                custom={dir}
-                variants={isLg ? undefined : slideVariants}
-                initial={isLg ? { opacity: 0, y: 16 } : "enter"}
-                animate={isLg ? { opacity: 1, y: 0 } : "center"}
-                exit={isLg ? { opacity: 0, y: -12 } : "exit"}
-                transition={{ duration: 0.28, ease: "easeOut" }}
-                className="col-start-1 row-start-1 grid min-h-0 w-full items-center gap-6 lg:grid-cols-12 lg:gap-12"
-              >
-                <div className="lg:col-span-5">
-                  <span
-                    className={cn(
-                      "inline-flex rounded-full px-3 py-1 text-caption font-semibold backdrop-blur-sm",
-                      tone.badge,
-                    )}
-                  >
-                    {slide.eyebrow}
-                  </span>
-                  <h2 className="mt-3 text-h3 text-white drop-shadow-sm sm:mt-4 sm:text-h2 lg:text-h1">
-                    {slide.title}
-                  </h2>
-                  <p className="mt-3 max-w-md text-body-sm text-white/90 sm:mt-4 sm:text-body-lg">
-                    {slide.lead}
-                  </p>
-                </div>
+            {/*
+              Вход слайда — CSS-анимация по key (React пересоздаёт узел при смене
+              слайда). Направление берём из dir: вперёд — справа, назад — слева.
+              Анимация выхода убрана: слайды идут внахлёст в одной grid-ячейке,
+              и мгновенная смена читается как обычный слайдер.
+            */}
+            <div
+              key={slide.id}
+              className={cn(
+                "col-start-1 row-start-1 grid min-h-0 w-full items-center gap-6 lg:grid-cols-12 lg:gap-12",
+                isLg ? "story-enter-lg" : dir > 0 ? "story-enter-next" : "story-enter-prev",
+              )}
+            >
+              <div className="lg:col-span-5">
+                <span
+                  className={cn(
+                    "inline-flex rounded-full px-3 py-1 text-caption font-semibold backdrop-blur-sm",
+                    tone.badge,
+                  )}
+                >
+                  {slide.eyebrow}
+                </span>
+                <h2 className="mt-3 text-h3 text-white drop-shadow-sm sm:mt-4 sm:text-h2 lg:text-h1">
+                  {slide.title}
+                </h2>
+                <p className="mt-3 max-w-md text-body-sm text-white/90 sm:mt-4 sm:text-body-lg">
+                  {slide.lead}
+                </p>
+              </div>
 
-                <ul className="grid gap-3 lg:col-span-7">
-                  {slide.points.map((p) => {
-                    const Icon = p.icon;
-                    return (
-                      <li
-                        key={p.title}
+              <ul className="grid gap-3 lg:col-span-7">
+                {slide.points.map((p) => {
+                  const Icon = p.icon;
+                  return (
+                    <li
+                      key={p.title}
+                      className={cn(
+                        "flex gap-3 rounded-xl border p-4 backdrop-blur-md sm:gap-4 sm:p-5",
+                        tone.cardBorder,
+                        tone.cardBg,
+                      )}
+                    >
+                      <span
                         className={cn(
-                          "flex gap-3 rounded-xl border p-4 backdrop-blur-md sm:gap-4 sm:p-5",
-                          tone.cardBorder,
-                          tone.cardBg,
+                          "flex size-10 shrink-0 items-center justify-center rounded-lg sm:size-12",
+                          tone.iconWrap,
                         )}
                       >
-                        <span
-                          className={cn(
-                            "flex size-10 shrink-0 items-center justify-center rounded-lg sm:size-12",
-                            tone.iconWrap,
-                          )}
-                        >
-                          <Icon className={cn("size-5 sm:size-6", tone.icon)} strokeWidth={2.1} />
-                        </span>
-                        <div className="min-w-0">
-                          <h3 className="text-h6 text-white">{p.title}</h3>
-                          <p className="mt-1 text-caption text-white/85 sm:text-body-sm">{p.desc}</p>
-                        </div>
-                      </li>
-                    );
-                  })}
-                </ul>
-              </motion.div>
-            </AnimatePresence>
+                        <Icon className={cn("size-5 sm:size-6", tone.icon)} strokeWidth={2.1} />
+                      </span>
+                      <div className="min-w-0">
+                        <h3 className="text-h6 text-white">{p.title}</h3>
+                        <p className="mt-1 text-caption text-white/85 sm:text-body-sm">{p.desc}</p>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
           </div>
 
           <div className="mt-6 flex items-center justify-center gap-3 lg:mt-8">
