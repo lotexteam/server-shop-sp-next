@@ -121,7 +121,15 @@ function mergeFacets(next: CatalogFilterAttr[], prev: CatalogFilterAttr[]): Cata
   return out;
 }
 
-export function CatalogPage() {
+export function CatalogPage({
+  initialProducts,
+  initialCategories,
+}: {
+  /** SSR-первая страница каталога (передаёт app/catalog*); hook догружает полный каталог */
+  initialProducts?: Product[];
+  /** SSR-дерево категорий (передаёт app/catalog/[slug]) */
+  initialCategories?: Category[];
+} = {}) {
   const searchParams = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();

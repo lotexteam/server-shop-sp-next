@@ -30,11 +30,11 @@ function scrollToNextSection() {
 
 const brands = ["Dell", "HPE", "Intel", "AMD", "Supermicro", "Lenovo", "Cisco", "NVIDIA"];
 
-export function HomePage() {
+export function HomePage({ initialProducts }: { initialProducts?: Product[] }) {
   const router = useRouter();
   const { addToCart, toggleFav } = useShop();
   const { push } = useToast();
-  const products = useHomeHighlights();
+  const products = useHomeHighlights(initialProducts);
   const { content: cmsHome } = useHomeContent();
   const { contacts } = useContacts();
   const { categories } = useCategories();

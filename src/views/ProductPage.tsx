@@ -26,15 +26,15 @@ import { fetchProduct, fetchProducts, categoryHref } from "@/lib/api";
 import type { Category, Product } from "@/data/types";
 import { useCategories } from "@/hooks/useCategories";
 import { NotFoundPage } from "./NotFoundPage";
-import { usePageMeta } from "@/components/layout/DocumentHead";
 import { WarrantyPicker, toCartWarranty } from "@/components/product/WarrantyPicker";
 import { useWarrantyOptions } from "@/hooks/useWarrantyOptions";
 import { detail as metricaDetail, toMetricaProduct } from "@/lib/analytics/metrica";
 
-export function ProductPage() {
+export function ProductPage({ initialProduct }: { initialProduct?: Product | null }) {
   const routeParams = useParams();
-    const slug = typeof routeParams.slug === "string" ? routeParams.slug : undefined;
-  const [product, setProduct] = useState<Product | null | undefined>(undefined);
+  const slug = typeof routeParams.slug === "string" ? routeParams.slug : undefined;
+  // SSR-товар: H1/цена/характеристики рендерятся сразу в HTML (без скелета).
+  const [product, setProduct] = useState<Product | null | undefined>(initialProduct ?? undefined);
   const [related, setRelated] = useState<Product[]>([]);
   const [compatible, setCompatible] = useState<Product[]>([]);
 
@@ -44,18 +44,23 @@ export function ProductPage() {
       return;
     }
     let cancelled = false;
+    // SSR уже отдал тот же slug: первый экран отрендерен, сам товар не
+    // перезапрашиваем (лишний API-запрос и мигание), но related/compatible
+    // и ecommerce-метрику догружаем как раньше.
+    const ssrProduct =
+      initialProduct != null && initialProduct.slug === slug ? initialProduct : null;
     // Soft platform switch: keep current configurable product shell so the page
     // does not remount / flash skeleton (child loads new cfg in place).
     const softPlatform =
       product?.isConfigurable &&
       product.slug !== slug;
-    if (!softPlatform) {
+    if (!ssrProduct && !softPlatform) {
       setProduct(undefined);
     }
     void (async () => {
-      const p = await fetchProduct(slug);
+      const p = ssrProduct ?? (await fetchProduct(slug));
       if (cancelled) return;
-      setProduct(p);
+      if (!ssrProduct) setProduct(p);
       // Ecommerce: product detail view.
       if (p) metricaDetail(toMetricaProduct(p));
       if (!p) return;
@@ -133,7 +138,6 @@ function ReadyProductPage({
   const { addToCart, toggleFav, favorites } = useShop();
   const { push } = useToast();
   const { onToggleCompare, isInCompare } = useCompareAction();
-  usePageMeta(product.title, product.shortDescription || null);
   const { options: warrantyOptions, loading: warrantyLoading } =
     useWarrantyOptions(product.id || product.slug);
   const [warrantyTermId, setWarrantyTermId] = useState<string | null>(null);

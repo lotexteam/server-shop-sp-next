@@ -1,6 +1,7 @@
 import { CatalogPage } from "@/views/CatalogPage";
 import { pageSeo, JsonLd } from "@/lib/seo-page";
-import { permanentRedirect } from "next/navigation";
+import { fetchCatalogPageServer } from "@/lib/server-data";
+import { notFound, permanentRedirect } from "next/navigation";
 
 export const dynamic = "force-dynamic";
 
@@ -25,13 +26,20 @@ export async function generateMetadata({ params, searchParams }: Props) {
 
 export default async function Page({ params }: Props) {
   const { slug } = await params;
-  const { jsonld, redirectTo } = await pageSeo(`/catalog/${slug}`, `/catalog/${slug}`);
+  const { jsonld, redirectTo, notFound: isMissing } = await pageSeo(`/catalog/${slug}`, `/catalog/${slug}`);
   // Legacy 301 (P0.2/P0.4): slug renames etc - from the page body.
   if (redirectTo) permanentRedirect(redirectTo);
+  // P0.2: неизвестная категория → настоящий 404 (а не 200 с пустым каталогом).
+  if (isMissing) notFound();
+  // P0.1: SSR первой страницы каталога теми же endpoint'ами, что у хуков.
+  const { products, categories } = await fetchCatalogPageServer();
   return (
     <>
       <JsonLd blocks={jsonld} />
-      <CatalogPage />
+      <CatalogPage
+        initialProducts={products ?? undefined}
+        initialCategories={categories ?? undefined}
+      />
     </>
   );
 }

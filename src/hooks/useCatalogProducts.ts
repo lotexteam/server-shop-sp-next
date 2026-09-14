@@ -53,9 +53,14 @@ export async function loadCatalogProducts(force = false): Promise<Product[]> {
   return inflight;
 }
 
-export function useCatalogProducts() {
-  const [products, setProducts] = useState<Product[]>(cache ?? []);
-  const [loading, setLoading] = useState(!cache);
+export function useCatalogProducts(initialData?: Product[]) {
+  // SSR-данные первого экрана: контент есть сразу (loading=false), фоновая
+  // догрузка полного каталога сохраняется для клиентской фильтрации.
+  const hasInitial = initialData != null && initialData.length > 0;
+  const [products, setProducts] = useState<Product[]>(
+    hasInitial ? initialData! : (cache ?? []),
+  );
+  const [loading, setLoading] = useState(!hasInitial && !cache);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -110,10 +115,15 @@ export async function loadHomeHighlights(force = false): Promise<Product[]> {
   return homeInflight;
 }
 
-export function useHomeHighlights() {
-  const [products, setProducts] = useState<Product[]>(homeCache ?? []);
+export function useHomeHighlights(initialData?: Product[] | null): Product[] {
+  const hasInitial = initialData != null && initialData.length > 0;
+  const [products, setProducts] = useState<Product[]>(
+    hasInitial ? initialData : (homeCache ?? []),
+  );
 
   useEffect(() => {
+    // SSR уже отрендерил ту же подборку — повторный клиентский fetch не нужен.
+    if (hasInitial) return;
     let cancelled = false;
     void loadHomeHighlights().then((items) => {
       if (!cancelled) setProducts(items);
@@ -121,7 +131,7 @@ export function useHomeHighlights() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [hasInitial]);
 
   return products;
 }

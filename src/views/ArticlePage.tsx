@@ -14,7 +14,6 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { absoluteMediaUrl, fetchBlogPost, fetchBlogPosts } from "@/lib/api";
 import type { Article } from "@/data/types";
 import { NotFoundPage } from "./NotFoundPage";
-import { usePageMeta } from "@/components/layout/DocumentHead";
 import { useSiteSettings } from "@/hooks/useSiteSettings";
 
 /** Ссылки на файлы (*.pdf, *.jpg…) открываются как документы, а не маршруты SPA. */
@@ -35,7 +34,6 @@ export function ArticlePage() {
     (Article & { bodyMarkdown?: string }) | null | undefined
   >(undefined);
   const [related, setRelated] = useState<Article[]>([]);
-  usePageMeta(article?.title ?? null);
 
   useEffect(() => {
     if (!slug) {

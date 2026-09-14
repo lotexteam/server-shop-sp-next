@@ -10,6 +10,7 @@
  */
 
 import type { Metadata } from "next";
+import { cache } from "react";
 import {
   fetchSeoDocumentServer,
   fetchSiteServer,
@@ -17,6 +18,12 @@ import {
   toLocalPath,
   type ServerSeoDocument,
 } from "./seo-server";
+
+// Dedup запросов /seo/document и /settings/site: pageSeo вызывается и из
+// generateMetadata, и из тела страницы — кэш React отдаёт один результат
+// на запрос (один fetch вместо двух). Кэш per-request, между запросами не живёт.
+const fetchSeoDocumentCached = cache(fetchSeoDocumentServer);
+const fetchSiteCached = cache(fetchSiteServer);
 
 /** titleFromPath из DocumentHead SPA (sp-ui набор). */
 const PATH_TITLES: Array<[string, string]> = [
@@ -119,6 +126,17 @@ function fallbackMetadata(
   };
 }
 
+/** Метаданные страницы-404: фолбэк-тайтл + noindex/nofollow (статус даёт notFound()). */
+function notFoundMetadata(
+  pathname: string,
+  site: Awaited<ReturnType<typeof fetchSiteServer>>,
+): Metadata {
+  return {
+    ...fallbackMetadata(pathname, site),
+    robots: { index: false, follow: false },
+  };
+}
+
 export type PageSeoResult = {
   metadata: Metadata;
   /** JSON-LD блоки SeoDocument — рендерятся страницей в SSR-HTML. */
@@ -131,6 +149,14 @@ export type PageSeoResult = {
    * вызывает redirect()/permanentRedirect() в своём теле.
    */
   redirectTo: string | null;
+  /**
+   * SeoDocumentBuilder ответил kind=not_found — это ФАКТ отсутствия сущности
+   * (нет товара/категории/статьи): страница обязана отдать HTTP 404 через
+   * notFound(), а не мягкий 200 с фолбэк-метаданными. null-документ (сбой
+   * витринного API) сюда НЕ попадает — там notFound=false, страница деградирует
+   * в фолбэк и остаётся рабочей.
+   */
+  notFound: boolean;
 };
 
 export async function pageSeo(
@@ -138,9 +164,10 @@ export async function pageSeo(
   pathnameForFallback?: string,
 ): Promise<PageSeoResult> {
   const [doc, site] = await Promise.all([
-    fetchSeoDocumentServer(path),
-    fetchSiteServer(),
+    fetchSeoDocumentCached(path),
+    fetchSiteCached(),
   ]);
+  const notFound = doc?.kind === "not_found";
 
   // Легаси-редиректы (смена slug, /catalog?category=): человек и бот
   // уходят на канонический адрес постоянным редиректом (выполняет страница).
@@ -152,11 +179,24 @@ export async function pageSeo(
     }
   }
 
-  if (doc) {
+  if (doc && !notFound) {
     return {
       metadata: seoDocToMetadata(doc, site),
       jsonld: Array.isArray(doc.jsonld) ? doc.jsonld : [],
       redirectTo,
+      notFound: false,
+    };
+  }
+
+  if (notFound) {
+    // Факт отсутствия: страница вызовет notFound() → настоящий HTTP 404.
+    // redirect_to (если бэкенд отдал его вместе с not_found) приоритетнее:
+    // страница проверяет redirectTo раньше notFound.
+    return {
+      metadata: notFoundMetadata(pathnameForFallback || path, site),
+      jsonld: [],
+      redirectTo,
+      notFound: true,
     };
   }
 
@@ -164,6 +204,7 @@ export async function pageSeo(
     metadata: fallbackMetadata(pathnameForFallback || path, site),
     jsonld: [],
     redirectTo,
+    notFound: false,
   };
 }
 

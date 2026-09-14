@@ -1,6 +1,6 @@
 import { ArticlePage } from "@/views/ArticlePage";
 import { pageSeo, JsonLd } from "@/lib/seo-page";
-import { permanentRedirect } from "next/navigation";
+import { notFound, permanentRedirect } from "next/navigation";
 
 export const dynamic = "force-dynamic";
 
@@ -18,9 +18,11 @@ export async function generateMetadata({ params }: Props) {
 
 export default async function Page({ params }: Props) {
   const { slug } = await params;
-  const { jsonld, redirectTo } = await pageSeo(`/blog/${slug}`, `/blog/${slug}`);
+  const { jsonld, redirectTo, notFound: isMissing } = await pageSeo(`/blog/${slug}`, `/blog/${slug}`);
   // Legacy 301 (P0.2/P0.4): slug renames etc - from the page body.
   if (redirectTo) permanentRedirect(redirectTo);
+  // P0.2: неизвестная статья → настоящий 404.
+  if (isMissing) notFound();
   return (
     <>
       <JsonLd blocks={jsonld} />

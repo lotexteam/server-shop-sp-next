@@ -1,6 +1,7 @@
 import { ProductPage } from "@/views/ProductPage";
 import { pageSeo, JsonLd } from "@/lib/seo-page";
-import { permanentRedirect } from "next/navigation";
+import { fetchProductServer } from "@/lib/server-data";
+import { notFound, permanentRedirect } from "next/navigation";
 
 export const dynamic = "force-dynamic";
 
@@ -25,13 +26,19 @@ export async function generateMetadata({ params, searchParams }: Props) {
 
 export default async function Page({ params }: Props) {
   const { slug } = await params;
-  const { jsonld, redirectTo } = await pageSeo(`/product/${slug}`, `/product/${slug}`);
+  const { jsonld, redirectTo, notFound: isMissing } = await pageSeo(`/product/${slug}`, `/product/${slug}`);
   // Legacy 301 (P0.2/P0.4): slug renames etc - from the page body.
   if (redirectTo) permanentRedirect(redirectTo);
+  // P0.2: SeoDocumentBuilder сказал not_found → честный HTTP 404 вместо 200.
+  if (isMissing) notFound();
+  // Серверный SSR контента: тот же endpoint /products/{slug}, что и клиентский
+  // fetchProduct. API недоступен → null → отдаём клиенту самому догрузить,
+  // а не подменяем страницу 404 (не путаем сбой витринного API с ошибкой адреса).
+  const initialProduct = await fetchProductServer(slug);
   return (
     <>
       <JsonLd blocks={jsonld} />
-      <ProductPage />
+      <ProductPage initialProduct={initialProduct} />
     </>
   );
 }

@@ -10,6 +10,8 @@
  * src/lib/api.ts, которая нужна для метаданных — без localStorage/токенов.
  */
 
+import { cache } from "react";
+
 import { API_BASE_SERVER } from "@/lib/api-base";
 
 export type ServerSeoDocument = {
@@ -54,7 +56,14 @@ function appUrlOrigin(): string {
   }
 }
 
-async function serverGet<T>(path: string): Promise<T | null> {
+type ServerGetOptions = {
+  /** no-store (дефолт) или force-cache для стабильных данных (site). */
+  cache?: "no-store" | "force-cache";
+  revalidate?: number;
+};
+
+async function serverGet<T>(path: string, options: ServerGetOptions = {}): Promise<T | null> {
+  const { cache, revalidate } = options;
   try {
     const res = await fetch(`${API_BASE_SERVER}${path}`, {
       headers: {
@@ -62,7 +71,12 @@ async function serverGet<T>(path: string): Promise<T | null> {
         // Сайт-контекст мультиинстанс-бэкенда (как X-Seo-Site в SPA-версии).
         ...(appUrlOrigin() ? { "X-Seo-Site": appUrlOrigin() } : {}),
       },
-      cache: "no-store",
+      // Дефолт no-store (robots/redirects мгновенные); /settings/site —
+      // force-cache с revalidate (данные меняются редко).
+      cache: cache ?? "no-store",
+      ...(cache === "force-cache" && revalidate != null
+        ? { next: { revalidate } }
+        : {}),
       signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
     });
     if (!res.ok) return null;
@@ -75,20 +89,20 @@ async function serverGet<T>(path: string): Promise<T | null> {
 }
 
 /**
- * Тот же контракт, что fetchSeoDocument в lib/api.ts: not_found → null,
- * редиректы возвращаются как redirect_to (P0.2: скин отправляет человека
- * на канонический адрес).
+ * Тот же контракт, что fetchSeoDocument в lib/api.ts, но not_found НЕ
+ * сворачивается в null: SeoDocumentBuilder отвечает документом kind=not_found
+ * на несуществующий путь — это ФАКТ ОТСУТСТВИЯ (страница отдаёт notFound()),
+ * а null здесь — только сбой/недоступность API (страница деградирует в фолбэк,
+ * не подменяя адрес 404-м: не путаем сбой витринного API с ошибкой URL).
+ * Редиректы возвращаются как redirect_to (P0.2/P0.4).
  */
 export async function fetchSeoDocumentServer(
   path: string,
 ): Promise<ServerSeoDocument | null> {
   const qs = new URLSearchParams({ path });
-  const res = await serverGet<ApiItem<ServerSeoDocument>>(
+  return serverGet<ApiItem<ServerSeoDocument>>(
     `/seo/document?${qs.toString()}`,
-  );
-  const doc = res?.data;
-  if (!doc || doc.kind === "not_found") return null;
-  return doc;
+  ).then((res) => res?.data ?? null);
 }
 
 type ApiSitePayload = {
@@ -108,7 +122,12 @@ function absoluteMediaUrl(url: string | null | undefined): string | null {
 }
 
 export async function fetchSiteServer(): Promise<ServerSite | null> {
-  const res = await serverGet<ApiItem<ApiSitePayload>>("/settings/site");
+  // /settings/site меняется редко — кросс-запросный кэш (revalidate 60 c);
+  // в отличие от /seo/document, где robots/redirects должны быть мгновенными.
+  const res = await serverGet<ApiItem<ApiSitePayload>>("/settings/site", {
+    cache: "force-cache",
+    revalidate: 60,
+  });
   const raw = res?.data;
   if (!raw) return null;
   const title = String(raw.title || "").trim();

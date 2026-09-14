@@ -4,10 +4,8 @@ import Link from "next/link";
 import { motion } from "framer-motion";
 import { Home, Search, ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { usePageMeta } from "@/components/layout/DocumentHead";
 
 export function NotFoundPage() {
-  usePageMeta("Страница не найдена");
   return (
     <div className="container-page flex min-h-[70vh] flex-col items-center justify-center py-16 text-center">
       <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.4 }}>

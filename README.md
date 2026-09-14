@@ -1,13 +1,14 @@
 # server-shop-sp-next
 
-Next.js 16 (App Router, SSR) версия витрины **server-shop-sp-ui** — первый скин
-каталога серверного оборудования. Полная миграция с сохранением дизайна 1:1.
+Next.js 16 (App Router, SSR) витрина каталога серверного оборудования. Полная
+миграция с легаси React SPA `server-shop-sp-ui` (репозиторий сохранён в архиве,
+из рабочей области удалён 2026-09-23) с сохранением дизайна 1:1.
 
 | | |
 |---|---|
 | Каркас | Next.js 16 App Router, `output: 'standalone'`, Turbopack (dev) |
 | UI | React 19 (client components), Tailwind CSS 3.4, Radix UI, framer-motion |
-| SEO | Серверный `generateMetadata` через Storefront API `/seo/document`; JSON-LD в SSR-HTML |
+| SEO | Серверный `generateMetadata` через Storefront API `/seo/document`; JSON-LD и **контент** (H1/цена/характеристики/карточки) в SSR-HTML; `kind=not_found` → HTTP 404 |
 | API | Laravel `/api/v1` (контракт: `server-shop/docs/STOREFRONT-API.md`) |
 | Деплой | Docker: node:20-alpine standalone → сеть `shop` за Caddy |
 

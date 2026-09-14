@@ -41,7 +41,6 @@ import { ConfigPrintSheet } from "@/components/configurator/ConfigPrintSheet";
 import { useShop } from "@/store/shop";
 import { useAuth } from "@/store/auth";
 import { useToast } from "@/components/ui/toast";
-import { usePageMeta } from "@/components/layout/DocumentHead";
 import { WarrantyPicker, toCartWarranty } from "@/components/product/WarrantyPicker";
 import { useWarrantyOptions } from "@/hooks/useWarrantyOptions";
 import {
@@ -170,7 +169,6 @@ export function ConfigurableProductView({ product }: Props) {
 
   const displayTitle =
     activePlatform?.name || state.cfg?.name || product.title;
-  usePageMeta(displayTitle);
   const displayLabel = platformLabel(displayTitle);
   const displaySku =
     activePlatform?.sku || product.sku || state.cfg?.slug || product.slug;

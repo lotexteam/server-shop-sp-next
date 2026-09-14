@@ -205,3 +205,31 @@
 - [ ] Переключение: `./scripts/update.sh --migrate` (автовой встроен).
 - [ ] Наблюдение 7 дней → `./scripts/cleanup-old-ui.sh --images` → архивация
       server-shop-sp-ui.
+
+## SEO/перф-волна 2026-09-23 — SSR-контент, честный 404, dedup fetch (обе витрины)
+
+Общий план и статус: `server-shop/docs/SEO-PERF-NEXT-PLAN-2026-09.md`.
+Рецепт применён и к `server-shop-sp-next`, и к `server-shop-sale-next` (паритет
+проверен статически: одинаковый набор страниц с `notFound`/`redirectTo`/SSR-пропсами).
+
+- ✅ **P0.1 контент в SSR-HTML.** Новый `src/lib/server-data.ts` — серверные fetch
+  **теми же** endpoint'ами, что клиентские хуки (`/products/{slug}`,
+  `/products?page&per_page`, `/categories?tree=1`), дословный DTO→Product/Category
+  маппинг и витринный фильтр `cfg-opt-*`. `ProductPage`/`CatalogPage`/`HomePage`
+  принимают `initialProduct`/`initialProducts`/`initialCategories`, страницы
+  `app/{page,catalog,catalog/[slug],product/[slug]}` их передают. Клиентские
+  effect'ы сохранены (софт-переключение платформ, related, метрика), но не
+  перезапрашивают уже отрендеренный slug.
+- ✅ **P0.2 честный 404.** `fetchSeoDocumentServer` больше не сворачивает
+  `kind=not_found` в `null`; `pageSeo` отдаёт `notFound: boolean` (+ noindex
+  метаданные), тела product/catalog/[slug]/blog/[slug] зовут `notFound()`.
+  Сбой API (`doc === null`) деградирует в фолбэк и НЕ даёт 404.
+- ✅ **P0.3 dedup.** `cache()` на `/seo/document` и `/settings/site`: metadata и
+  тело страницы делят один fetch для канонических URL. `/settings/site` —
+  `force-cache` + `revalidate 60`; `/seo/document` — `no-store` (robots/redirects
+  должны быть мгновенными).
+- ✅ **P1.4** клиентский `usePageMeta` убран отовсюду, кроме `NotFoundPage`.
+- ✅ Комментарии на китайском, оставленные подагентами, переписаны на русский.
+- ⏳ Осталось: рантайм-верификация curl'ом бот-UA на стенде (локально нет API/Docker);
+  P1.1 ISR, P1.2 бандл (framer-motion), P1.5 шрифты; настоящий 410 (сейчас 404+noindex).
+
