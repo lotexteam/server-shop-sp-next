@@ -2870,6 +2870,48 @@ export async function apiUnsubscribeNewsletter(
   return { message: res.data?.message || "Вы отписаны от рассылки." };
 }
 
+/* ── Newsletter: подписка из личного кабинета ─────────── */
+
+/**
+ * GET /newsletter/status (auth) — состояние подписки текущего покупателя.
+ * Сбой сети не должен ломать кабинет: отдаём null-состояние, переключатель
+ * останется выключенным и включать подписку всё равно можно.
+ */
+export async function fetchNewsletterStatus(): Promise<{
+  email: string | null;
+  subscribed: boolean | null;
+}> {
+  try {
+    const res = await request<
+      ApiItem<{ email?: string | null; subscribed?: boolean | null }>
+    >("/newsletter/status", { auth: true });
+    return {
+      email: res.data?.email ?? null,
+      subscribed: res.data?.subscribed ?? null,
+    };
+  } catch {
+    return { email: null, subscribed: null };
+  }
+}
+
+/** POST /newsletter/subscribe — включение галочки «Новости и акции» в кабинете. */
+export async function subscribeNewsletter(email: string): Promise<string> {
+  const res = await request<ApiItem<{ message?: string }>>(
+    "/newsletter/subscribe",
+    { method: "POST", json: { email, source: "account" } },
+  );
+  return res.data?.message || "Вы подписаны на новости и акции.";
+}
+
+/** POST /newsletter/unsubscribe — выключение галочки (auth, по email аккаунта). */
+export async function unsubscribeNewsletter(email: string): Promise<string> {
+  const res = await request<ApiItem<{ message?: string }>>(
+    "/newsletter/unsubscribe",
+    { method: "POST", auth: true, json: { email } },
+  );
+  return res.data?.message || "Вы отписаны от рассылки.";
+}
+
 /* ── Account book: saved delivery addresses ───────────── */
 
 export type ApiAddress = {

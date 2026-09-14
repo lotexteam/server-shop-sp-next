@@ -42,11 +42,14 @@ import { formatBonus } from "@/lib/bonuses";
 import { resolveProductsByIds } from "@/hooks/useCatalogProducts";
 import {
   fetchAccountOrders,
+  fetchNewsletterStatus,
   requestEmailChangeCode,
   requestPasswordChangeCode,
   changeAccountPassword,
   forgotPassword,
   resetPassword,
+  subscribeNewsletter,
+  unsubscribeNewsletter,
   type AccountOrder,
 } from "@/lib/api";
 import type { Product } from "@/data/types";
@@ -126,6 +129,51 @@ export function AccountPage() {
   const [emailStage, setEmailStage] = useState<"idle" | "code">("idle");
   const [emailCode, setEmailCode] = useState("");
   const [emailBusy, setEmailBusy] = useState(false);
+
+  // ── Подписка «Новости и акции»: реальный бэкенд (GET /newsletter/status,
+  // POST /newsletter/subscribe|unsubscribe), а не декоративный Switch ──
+  const [newsletter, setNewsletter] = useState<{ subscribed: boolean | null; busy: boolean }>({
+    subscribed: null,
+    busy: false,
+  });
+
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    let cancelled = false;
+    void fetchNewsletterStatus().then((s) => {
+      if (!cancelled) setNewsletter({ subscribed: s.subscribed, busy: false });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [isAuthenticated]);
+
+  const toggleNewsletter = async (next: boolean) => {
+    const email = user?.email || "";
+    if (!email) {
+      push({
+        variant: "warning",
+        title: "Не удалось изменить подписку",
+        description: "Укажите email в профиле и сохраните его.",
+      });
+      return;
+    }
+    setNewsletter((s) => ({ ...s, busy: true }));
+    try {
+      const message = next
+        ? await subscribeNewsletter(email)
+        : await unsubscribeNewsletter(email);
+      setNewsletter({ subscribed: next, busy: false });
+      push({ variant: "success", title: message });
+    } catch (e) {
+      setNewsletter((s) => ({ ...s, busy: false }));
+      push({
+        variant: "error",
+        title: "Не удалось изменить подписку",
+        description: e instanceof Error ? e.message : undefined,
+      });
+    }
+  };
 
   const sendPwCode = async () => {
     setPwBusy(true);
@@ -1213,8 +1261,6 @@ export function AccountPage() {
                 [
                   ["Email-уведомления о заказах", true],
                   ["Уведомления о начислении бонусов", true],
-                  ["Новости и акции", false],
-                  ["Двухфакторная аутентификация", false],
                 ] as const
               ).map(([label, on]) => (
                 <div key={label} className="flex items-center justify-between py-4">
@@ -1222,6 +1268,28 @@ export function AccountPage() {
                   <Switch defaultChecked={on} />
                 </div>
               ))}
+
+              {/*
+                «Двухфакторная аутентификация» убрана: у покупателя в бэкенде нет
+                ни endpoints, ни полей под неё — переключатель был декоративным
+                (2FA TOTP есть только у staff в /api/v1/admin). «Новости и акции»
+                привязана к реальной подписке бэкенда.
+              */}
+              <div className="flex items-center justify-between gap-6 py-4">
+                <div className="min-w-0">
+                  <span className="text-body-sm font-medium">Новости и акции</span>
+                  <p className="text-caption text-muted-foreground">
+                    {newsletter.subscribed
+                      ? `Подписка активна${user?.email ? `: ${user.email}` : ""}.`
+                      : "Подпишитесь, чтобы получать письма о новинках и акциях."}
+                  </p>
+                </div>
+                <Switch
+                  checked={newsletter.subscribed === true}
+                  disabled={newsletter.busy}
+                  onCheckedChange={(next) => void toggleNewsletter(next)}
+                />
+              </div>
             </div>
           )}
         </div>
