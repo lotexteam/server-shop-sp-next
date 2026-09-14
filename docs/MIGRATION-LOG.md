@@ -247,9 +247,23 @@
   (35 файлов) **0** совпадений по `framer-motion|data-projection-id|whileHover|AnimatePresence`.
   Пакет `framer-motion` оставлен в `package.json` (без импортов он не попадает в
   граф сборки; удаление зависимости требует регенерации lock-файла).
-- ⏳ Осталось: рантайм-верификация бот-UA на стенде (локально нет API/Docker) —
-  и она **критична**: на `new.server-price.ru` Googlebot получает 404 от Laravel,
-  т.е. стенд крутит старый Caddyfile с `@bot`-роутом на удалённый `/seo/html`
-  (подробности — `server-shop/docs/SEO-PERF-NEXT-PLAN-2026-09.md`);
-  P1.1 ISR, P1.5 шрифты; настоящий 410 (сейчас 404+noindex).
+- ✅ **Наблюдаемость серверного слоя** (инцидент стенда 2026-09-23): `serverGet` в
+  `src/lib/seo-server.ts` и `src/lib/server-data.ts` больше не глушит причину
+  деградации — пишет `[seo-server]`/`[storefront-server] <path> → HTTP <status>` или
+  `сбой запроса: …` в лог витрины (`docker logs`). В `seo-server` тело читается и на
+  404/410: `SeoDocumentBuilder` может отдать документ (`kind`/`http_status`) таким
+  статусом — это факт отсутствия (страница отдаёт `notFound()`), а не сбой API.
+  `404` на `/products/{slug}` намеренно не логируется — штатное «нет товара».
+  Разбор: `server-shop/docs/ai-agent/updates/2026-09-23-caddy-reload-after-frontend.md`.
+- ✅ **P1.2 подтверждён на стенде замером** (2026-09-23): в живом CSS
+  `580caccf83f6dc3d.css` есть `story-enter-*`, `toast-out`, `bar-out`, `menu-out`,
+  `.pop-in`; в 18 JS-чанках — 0 совпадений по framer-motion. Главная: 905 КБ
+  (840 КБ JS + 65 КБ CSS) против 1030 КБ (966 КБ JS в 20 чанках) → −126 КБ JS,
+  −2 запроса (исчез чанк 118.7 КБ — framer-motion).
+- ⏳ Осталось: **перечитать** Caddy на стенде (одной перегенерации файла мало) — на
+  `new.server-price.ru` Googlebot получает 404 от Laravel, т.е. живой конфиг всё ещё
+  содержит `@bot`-роут на удалённый `/seo/html`; тот же неперечитанный конфиг не
+  применяет `@static_media` (медиа/шрифты отдаются с `max-age=0`). Молчащие пути
+  деплоя исправлены в `server-shop/scripts`; P1.1 ISR, P1.5 шрифты; настоящий 410
+  (сейчас 404+noindex).
 

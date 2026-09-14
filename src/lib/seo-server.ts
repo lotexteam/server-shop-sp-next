@@ -79,11 +79,27 @@ async function serverGet<T>(path: string, options: ServerGetOptions = {}): Promi
         : {}),
       signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
     });
-    if (!res.ok) return null;
+    // SeoDocumentBuilder может ответить и не-2xx (404/410) на отсутствующую
+    // сущность, но тело всё равно несёт документ (kind/http_status) — это ФАКТ
+    // отсутствия (страница отдаёт notFound()), а не сбой API. Поэтому 404/410
+    // читаем как данные; null остаётся для 5xx и сетевых сбоев.
+    if (!res.ok && res.status !== 404 && res.status !== 410) {
+      // Не глотаем причину: иначе деградация метаданных в фолбэк (title/robots
+      // без SeoDocument) не диагностируется на стенде — видно только «нет
+      // канонического H1/404», а почему, из логов не понять.
+      console.error(
+        `[seo-server] ${path} → HTTP ${res.status}: метаданные деградируют в фолбэк`,
+      );
+      return null;
+    }
     return (await res.json()) as T;
-  } catch {
+  } catch (e) {
     // API недоступен (например, во время next build) — метаданные деградируют
-    // до фолбэков, страница остаётся рабочей.
+    // до фолбэков, страница остаётся рабочей. Причину пишем: важно отличать
+    // «бэкенд сказал not_found» (404-страница) от «API не ответил» (фолбэк).
+    console.error(
+      `[seo-server] ${path} → сбой запроса: ${e instanceof Error ? e.message : String(e)}`,
+    );
     return null;
   }
 }

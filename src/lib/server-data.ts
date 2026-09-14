@@ -49,11 +49,26 @@ async function serverGet<T>(path: string): Promise<T | null> {
       cache: "no-store",
       signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
     });
-    if (!res.ok) return null;
+    if (!res.ok) {
+      // 404 на /products/{slug} — штатное «нет такого товара» (страница уходит
+      // в клиентскую загрузку и отдаёт not found), им лог не шумим. Прочие
+      // не-2xx — деградация SSR: HTML приходит без карточек/цен («Загрузка…»),
+      // и причину надо видеть в логах витрины, а не угадывать снаружи.
+      const expectedMiss = res.status === 404 && path.startsWith("/products/");
+      if (!expectedMiss) {
+        console.warn(
+          `[storefront-server] ${path} → HTTP ${res.status}: SSR-данные не получены (клиентская загрузка)`,
+        );
+      }
+      return null;
+    }
     return (await res.json()) as T;
-  } catch {
+  } catch (e) {
     // API недоступен (например, во время next build) — страница деградирует
     // к клиентской загрузке через initialData=null.
+    console.warn(
+      `[storefront-server] ${path} → сбой запроса: ${e instanceof Error ? e.message : String(e)}`,
+    );
     return null;
   }
 }
