@@ -129,17 +129,24 @@ export function HeroVideoStage() {
       className="hero-stage pointer-events-none sticky top-[var(--chrome-h)] z-0 w-full overflow-hidden bg-[#120c28]"
       aria-hidden
     >
-      <img
-        src={POSTER_SM}
-        srcSet={`${POSTER_SM} 800w, ${POSTER} 1280w`}
-        sizes="100vw"
-        alt=""
-        width={800}
-        height={450}
-        fetchPriority="high"
-        decoding="async"
-        className="absolute inset-0 size-full object-cover"
-      />
+      {/*
+        Постер выбирается по media, а не по srcset+sizes: при sizes="100vw"
+        preload-сканер и сам <img> расходились в выборе кандидата (Chrome писал
+        «/main-poster.webp was preloaded but not used»), т.е. файл качался зря.
+        Так выбор детерминирован и совпадает с preload в app/layout.tsx.
+      */}
+      <picture>
+        <source media="(min-width: 1024px)" srcSet={POSTER} />
+        <img
+          src={POSTER_SM}
+          alt=""
+          width={800}
+          height={450}
+          fetchPriority="high"
+          decoding="async"
+          className="absolute inset-0 size-full object-cover"
+        />
+      </picture>
       <video
         ref={videoRef}
         muted

@@ -98,13 +98,21 @@ export default function RootLayout({
           type="font/woff2"
           crossOrigin=""
         />
-        {/* Hero-видео постер: preload как в SPA index.html (LCP). */}
+        {/* Hero-постер (LCP): preload ровно того кандидата, который выберет
+            <picture> в HeroVideoStage по тому же media — без srcset-угадывания
+            (иначе Chrome ругался «preloaded but not used» и качал файл зря). */}
         <link
           rel="preload"
           as="image"
           href="/main-poster-800.webp"
-          imageSrcSet="/main-poster-800.webp 800w, /main-poster.webp 1280w"
-          imageSizes="100vw"
+          media="(max-width: 1023px)"
+          fetchPriority="high"
+        />
+        <link
+          rel="preload"
+          as="image"
+          href="/main-poster.webp"
+          media="(min-width: 1024px)"
           fetchPriority="high"
         />
       </head>
