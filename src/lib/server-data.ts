@@ -13,8 +13,12 @@
  * нельзя (урок из MEMORY: переносить выражения исходного кода дословно,
  * дословный дубликат лучше переизобретённого).
  *
- * Контракт: cache:"no-store", AbortSignal.timeout(4000), try/catch → null
+ * Контракт: кэш данных с revalidate (P1.1: без него каждый SSR-запрос заново
+ * обходил API и TTFB упирался в сеть), AbortSignal.timeout(4000), try/catch → null
  * (тот же, что в lib/seo-server.ts).
+ *
+ * TTL (P1.1): категории 300 c (меню меняется редко), список/карточка товара 60 c
+ * (цена и наличие остаются свежими, но повторные заходы и краулеры не бьют по API).
  */
 
 import { API_BASE_SERVER } from "@/lib/api-base";
@@ -28,6 +32,11 @@ import type { Product, Category, Subcategory } from "@/data/types";
 
 const FETCH_TIMEOUT_MS = 4000;
 
+/** P1.1: TTL серверных данных, сек (см. контракт в шапке файла). */
+const CATEGORIES_REVALIDATE_S = 300;
+const PRODUCT_REVALIDATE_S = 60;
+const PRODUCT_LIST_REVALIDATE_S = 60;
+
 function appUrlOrigin(): string {
   const raw = (process.env.APP_URL || "").replace(/\/$/, "");
   if (!raw) return "";
@@ -38,7 +47,7 @@ function appUrlOrigin(): string {
   }
 }
 
-async function serverGet<T>(path: string): Promise<T | null> {
+async function serverGet<T>(path: string, revalidate: number): Promise<T | null> {
   try {
     const res = await fetch(`${API_BASE_SERVER}${path}`, {
       headers: {
@@ -46,7 +55,9 @@ async function serverGet<T>(path: string): Promise<T | null> {
         // Сайт-контекст мультиинстанс-бэкенда (как X-Seo-Site в SPA-версии).
         ...(appUrlOrigin() ? { "X-Seo-Site": appUrlOrigin() } : {}),
       },
-      cache: "no-store",
+      // P1.1: Data Cache Next с revalidate вместо no-store — один обход API на TTL
+      // вместо обхода на каждый SSR-запрос (TTFB и нагрузка на бэкенд).
+      next: { revalidate },
       signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
     });
     if (!res.ok) {
@@ -327,6 +338,7 @@ export async function fetchProductServer(
   if (!key) return null;
   const res = await serverGet<ApiItem<ApiProduct>>(
     `/products/${encodeURIComponent(key)}`,
+    PRODUCT_REVALIDATE_S,
   );
   const raw = res?.data;
   return raw ? mapApiProduct(raw) : null;
@@ -343,7 +355,10 @@ export async function fetchProductsServer(
   const qs = new URLSearchParams();
   qs.set("per_page", String(perPage));
   if (page) qs.set("page", String(page));
-  const res = await serverGet<ApiItem<ApiProduct[]>>(`/products?${qs}`);
+  const res = await serverGet<ApiItem<ApiProduct[]>>(
+    `/products?${qs}`,
+    PRODUCT_LIST_REVALIDATE_S,
+  );
   if (res == null) return null;
   const raw = res.data || [];
   const items = raw.map(mapApiProduct);
@@ -361,7 +376,10 @@ export async function fetchProductsServer(
  * useCategories в lib/api.ts: GET /categories?tree=1.
  */
 export async function fetchCategoriesServer(): Promise<Category[] | null> {
-  const res = await serverGet<ApiItem<ApiCategory[]>>(`/categories?tree=1`);
+  const res = await serverGet<ApiItem<ApiCategory[]>>(
+    `/categories?tree=1`,
+    CATEGORIES_REVALIDATE_S,
+  );
   const raw = res?.data;
   return raw ? raw.map(mapApiCategory) : null;
 }
