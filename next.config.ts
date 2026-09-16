@@ -41,6 +41,7 @@ const nextConfig: NextConfig = {
       { source: "/tradein", destination: "/blog/tradein", permanent: true },
       { source: "/services", destination: "/blog/services", permanent: true },
       { source: "/monitoring", destination: "/blog/monitoring", permanent: true },
+      { source: "/konfigurator", destination: "/configurator", permanent: true },
     ];
   },
 };

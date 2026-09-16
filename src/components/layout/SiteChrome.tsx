@@ -79,7 +79,7 @@ export function SiteChrome({ children }: { children: React.ReactNode }) {
               <CookieConsent />
               {showConfiguratorFab && (
                 <Link
-                  href="/configurator"
+                  href="/konfigurator"
                   className="fixed bottom-4 right-4 z-30 flex h-12 items-center gap-2 rounded-full bg-primary px-5 text-body-sm font-semibold uppercase tracking-wide text-primary-foreground shadow-[0_8px_24px_rgba(0,0,0,0.35)] transition-colors hover:bg-primary/90 active:scale-95 lg:hidden"
                   aria-label="Открыть конфигуратор"
                 >
