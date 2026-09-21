@@ -37,6 +37,7 @@ import { SavedBuildsPanel } from "@/components/account/SavedBuildsPanel";
 import { formatPrice, cn } from "@/lib/utils";
 import { useShop, MAX_COMPARE } from "@/store/shop";
 import { useAuth } from "@/store/auth";
+import { useSiteSettings } from "@/hooks/useSiteSettings";
 import { useToast } from "@/components/ui/toast";
 import { formatBonus } from "@/lib/bonuses";
 import { resolveProductsByIds } from "@/hooks/useCatalogProducts";
@@ -78,6 +79,8 @@ export function AccountPage() {
     clearCompare,
     addToCart,
   } = useShop();
+  const { site } = useSiteSettings();
+  const bonusesOn = site?.bonusesEnabled !== false;
   const {
     isAuthenticated,
     user,
@@ -892,7 +895,7 @@ export function AccountPage() {
               </div>
             </div>
             <nav className="p-2">
-              {menu.map((m) => (
+              {menu.filter((m) => bonusesOn || m.key !== "bonuses").map((m) => (
                 <button
                   key={m.key}
                   onClick={() => router.push(m.key === "profile" ? "/account" : `/account/${m.key}`)}
@@ -1018,7 +1021,7 @@ export function AccountPage() {
 
           {tab === "addresses" && <AddressesPanel />}
           {tab === "legal" && <LegalEntitiesPanel />}
-          {tab === "bonuses" && <BonusTab />}
+          {tab === "bonuses" && bonusesOn && <BonusTab />}
 
           {tab === "orders" && (
             <div className="space-y-4">
@@ -1050,7 +1053,7 @@ export function AccountPage() {
                         <TableHead>Заказ</TableHead>
                         <TableHead>Дата</TableHead>
                         <TableHead>Статус</TableHead>
-                        <TableHead>Бонусы</TableHead>
+                        {bonusesOn ? <TableHead>Бонусы</TableHead> : null}
                         <TableHead>Сумма</TableHead>
                         <TableHead></TableHead>
                       </TableRow>
@@ -1080,6 +1083,7 @@ export function AccountPage() {
                               {o.status}
                             </Badge>
                           </TableCell>
+                          {bonusesOn ? (
                           <TableCell className="text-caption">
                             {o.bonusesSpent > 0 && (
                               <div className="text-muted-foreground">
@@ -1095,6 +1099,7 @@ export function AccountPage() {
                               <span className="text-muted-foreground">—</span>
                             )}
                           </TableCell>
+                          ) : null}
                           <TableCell className="font-bold">{formatPrice(o.total)}</TableCell>
                           <TableCell>
                             <Button asChild variant="ghost" size="icon-sm" aria-label="Детали">

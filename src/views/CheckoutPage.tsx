@@ -15,6 +15,7 @@ import { ConsentCheckbox } from "@/components/consent/ConsentCheckbox";
 import { logConsent } from "@/lib/consent/consent";
 import { isLineOnRequest, useShop } from "@/store/shop";
 import { useAuth } from "@/store/auth";
+import { useSiteSettings } from "@/hooks/useSiteSettings";
 import { formatPrice, cn } from "@/lib/utils";
 import { VatHint } from "@/components/common/Price";
 import { formatBonus, bonusWord } from "@/lib/bonuses";
@@ -49,6 +50,8 @@ export function CheckoutPage() {
     addresses,
     legalEntities,
   } = useAuth();
+  const { site } = useSiteSettings();
+  const bonusesOn = site?.bonusesEnabled !== false;
   const [delivery, setDelivery] = useState<string>("");
   const [payment, setPayment] = useState("");
   const [selectedAddressId, setSelectedAddressId] = useState<string>("");
@@ -396,7 +399,7 @@ export function CheckoutPage() {
           . Мы
           отправили детали на почту и скоро свяжемся для подтверждения.
         </p>
-        {isAuthenticated && (orderMeta.redeemed > 0 || orderMeta.earned > 0) && (
+        {bonusesOn && isAuthenticated && (orderMeta.redeemed > 0 || orderMeta.earned > 0) && (
           <div className="mt-6 w-full max-w-md rounded-xl border border-border bg-card p-5 text-left shadow-card">
             <p className="flex items-center gap-2 text-body-sm font-semibold">
               <Gift className="size-4 text-primary" /> Бонусы по заказу
@@ -486,7 +489,7 @@ export function CheckoutPage() {
           try {
             const serverCart = await syncLocalCartToServer(cart, promoCodeTrimmed);
 
-            const redeemReq = redeemEnabled ? Math.max(0, Math.min(Number(redeemAmount) || 0, serverBonusMax)) : 0;
+            const redeemReq = bonusesOn && redeemEnabled ? Math.max(0, Math.min(Number(redeemAmount) || 0, serverBonusMax)) : 0;
 
             // Saved address book entry → server snapshots by id;
             // otherwise a raw one-off address object.
@@ -1151,6 +1154,7 @@ export function CheckoutPage() {
               ))}
             </ul>
 
+            {bonusesOn ? (
             <div className="mt-4">
               <BonusRedeemBlock
                 cartSubtotal={cartTotal}
@@ -1160,6 +1164,7 @@ export function CheckoutPage() {
                 onRedeemAmountChange={setRedeemAmount}
               />
             </div>
+            ) : null}
 
             <div className="mt-4">
               <Label htmlFor="checkout-promo">Промокод</Label>
@@ -1220,7 +1225,7 @@ export function CheckoutPage() {
                   )}
                 </dd>
               </div>
-              {isAuthenticated && (
+              {bonusesOn && isAuthenticated && (
                 <div className="flex justify-between gap-3 text-primary">
                   <dt>Начислим бонусов после выполнения</dt>
                   <dd className="text-right font-medium">

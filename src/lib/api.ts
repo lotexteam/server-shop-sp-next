@@ -608,6 +608,7 @@ export type ShopSite = {
   pdfFooter: string | null;
   brandPrimary: string;
   brandAccent: string;
+  bonusesEnabled: boolean;
 };
 
 export const emptySite = (): ShopSite => ({
@@ -624,6 +625,7 @@ export const emptySite = (): ShopSite => ({
   pdfFooter: null,
   brandPrimary: "#4A22CE",
   brandAccent: "#F55688",
+  bonusesEnabled: true,
 });
 
 type ApiSitePayload = {
@@ -645,6 +647,7 @@ type ApiSitePayload = {
   pdf_footer?: string | null;
   brand_primary?: string | null;
   brand_accent?: string | null;
+  bonuses_enabled?: boolean | null;
 };
 
 function mapSite(raw?: ApiSitePayload | null): ShopSite {
@@ -671,6 +674,7 @@ function mapSite(raw?: ApiSitePayload | null): ShopSite {
     pdfFooter: raw?.pdf_footer ? String(raw.pdf_footer).trim() || null : null,
     brandPrimary: String(raw?.brand_primary || "").trim() || "#4A22CE",
     brandAccent: String(raw?.brand_accent || "").trim() || "#F55688",
+    bonusesEnabled: raw?.bonuses_enabled !== false,
   };
 }
 
