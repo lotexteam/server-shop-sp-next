@@ -541,9 +541,6 @@ export async function fetchProductIdBySlug(slug: string): Promise<string | null>
   }
 }
 
-/** @deprecated use fetchProductIdBySlug */
-export const resolveProductIdBySlug = fetchProductIdBySlug;
-
 export type ShopOrganization = {
   legalName: string | null;
   inn: string | null;
@@ -2763,48 +2760,6 @@ export async function apiFetchAccountDocuments(
     `/account/orders/${encodeURIComponent(orderId)}/documents`,
   );
   return Array.isArray(res.data) ? res.data : [];
-}
-
-export async function apiFetchCurrencies(): Promise<
-  Array<{ code: string; name?: string; symbol?: string }>
-> {
-  const res = await request<
-    ApiItem<Array<{ code: string; name?: string; symbol?: string }>>
-  >("/currencies");
-  return res.data || [];
-}
-
-export async function apiFetchBanners(): Promise<Record<string, unknown>[]> {
-  const res = await request<ApiItem<Record<string, unknown>[]>>("/banners");
-  return Array.isArray(res.data) ? res.data : [];
-}
-
-export async function apiFetchBlogCategories(): Promise<Record<string, unknown>[]> {
-  const res = await request<ApiItem<Record<string, unknown>[]>>("/blog-categories");
-  return Array.isArray(res.data) ? res.data : [];
-}
-
-export async function apiFetchCategoryIcons(): Promise<Record<string, unknown>> {
-  const res = await request<ApiItem<Record<string, unknown>>>("/meta/category-icons");
-  return res.data ?? {};
-}
-
-export async function apiSuggestDellinAddress(q: string): Promise<Record<string, unknown>[]> {
-  const res = await request<ApiItem<Record<string, unknown>[]>>(
-    `/shipping/dellin/suggest-address?q=${encodeURIComponent(q)}`,
-  );
-  return Array.isArray(res.data) ? res.data : [];
-}
-
-export async function apiUpdateAccountBuild(
-  id: string,
-  body: Record<string, unknown>,
-): Promise<ApiSavedBuild> {
-  const res = await request<ApiItem<ApiSavedBuild>>(`/account/builds/${id}`, {
-    method: "PUT",
-    json: body,
-  });
-  return res.data;
 }
 
 /**
