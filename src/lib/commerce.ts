@@ -71,9 +71,16 @@ export function quoteDeliveryMethod(
     return true;
   });
   // Два тарифа в корзине → 1 дорогая. Категории нет в матрице → минимальный.
-  let price = 0;
-  if (matched.length) price = Math.max(...matched.map((t) => t.price));
-  else if (tariffs.length) price = Math.min(...tariffs.map((t) => t.price));
+  const selectedTariff = matched.length
+    ? matched.reduce((current, tariff) =>
+        tariff.price > current.price ? tariff : current,
+      )
+    : tariffs.reduce<DeliveryTariff | undefined>(
+        (current, tariff) =>
+          !current || tariff.price < current.price ? tariff : current,
+        undefined,
+      );
+  const price = selectedTariff?.price ?? 0;
   const free = freeFrom > 0 && cartSubtotal >= freeFrom;
   const final = free ? 0 : price;
 
@@ -82,11 +89,11 @@ export function quoteDeliveryMethod(
     price: final,
     free,
     available: true,
-    note: free
-      ? `Бесплатно от ${freeFrom.toLocaleString("ru-RU")} ₽`
-      : final === 0
-        ? "Бесплатно"
-        : "",
+    note:
+      selectedTariff?.label?.trim() ||
+      (free && driver === "pickup"
+        ? `Бесплатно от ${freeFrom.toLocaleString("ru-RU")} ₽`
+        : ""),
   };
 }
 
