@@ -702,7 +702,7 @@ export function CheckoutPage() {
                 <Link href="/account" className="font-semibold text-primary hover:underline">
                   Войдите
                 </Link>
-                , чтобы использовать сохранённые адреса, юр. лица и бонусы.
+                , чтобы использовать сохранённые адреса, юр. лица{bonusesOn ? " и бонусы" : ""}.
               </p>
             )}
           </fieldset>
