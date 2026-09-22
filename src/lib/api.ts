@@ -1001,15 +1001,35 @@ function mapMenuItem(i: ApiMenuItem): MenuNavItem {
   };
 }
 
-export async function fetchMenu(code: string): Promise<MenuNavItem[]> {
+export type MenuData = {
+  items: MenuNavItem[];
+  /**
+   * Настройка меню «до какого уровня выводить подкатегории»:
+   * null — все уровни, 0 — только основные, N — N уровней.
+   */
+  subcategoriesDepth: number | null;
+};
+
+export async function fetchMenu(code: string): Promise<MenuData> {
   try {
     const res = await request<
-      ApiItem<{ id?: string; code?: string; name?: string; items?: ApiMenuItem[] }>
+      ApiItem<{
+        id?: string;
+        code?: string;
+        name?: string;
+        subcategories_depth?: number | null;
+        items?: ApiMenuItem[];
+      }>
     >(`/menus/${encodeURIComponent(code)}`);
     const items = res.data?.items || [];
-    return items.map(mapMenuItem);
+    const rawDepth = res.data?.subcategories_depth;
+    const subcategoriesDepth =
+      typeof rawDepth === "number" && Number.isFinite(rawDepth) && rawDepth >= 0
+        ? Math.floor(rawDepth)
+        : null;
+    return { items: items.map(mapMenuItem), subcategoriesDepth };
   } catch {
-    return [];
+    return { items: [], subcategoriesDepth: null };
   }
 }
 

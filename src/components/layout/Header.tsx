@@ -41,13 +41,16 @@ function DrawerCategoryBranch({
   node,
   depth = 0,
   activeSlug = "",
+  maxDepth = null,
 }: {
   node: CatNode;
   depth?: number;
   activeSlug?: string;
+  /** null — все уровни; 0 — только основные; N — N уровней подкатегорий */
+  maxDepth?: number | null;
 }) {
   const [open, setOpen] = useState(() => branchHasSlug(node, activeSlug));
-  const kids = node.children ?? [];
+  const kids = maxDepth !== null && depth >= maxDepth ? [] : (node.children ?? []);
   return (
     <div>
       <div className="flex items-center">
@@ -77,7 +80,7 @@ function DrawerCategoryBranch({
       {open && kids.length > 0 && (
         <div className={cn(kids.length > 14 && "max-h-56 overflow-y-auto overscroll-contain")}>
           {kids.map((ch) => (
-            <DrawerCategoryBranch key={ch.id} node={ch} depth={depth + 1} activeSlug={activeSlug} />
+            <DrawerCategoryBranch key={ch.id} node={ch} depth={depth + 1} activeSlug={activeSlug} maxDepth={maxDepth} />
           ))}
         </div>
       )}
@@ -95,7 +98,7 @@ export function Header() {
   const { favorites, compare } = useShop();
   const { categories } = useCategories();
   const { contacts } = useContacts();
-  const { items: menuItems, loading: menuLoading } = useMenu("header");
+  const { items: menuItems, loading: menuLoading, subcategoriesDepth } = useMenu("header");
   const { site } = useSiteSettings();
   const brand = site?.brand?.trim() || site?.title?.trim() || "";
   const logoSrc = site?.logoUrl || headerLogo;
@@ -253,7 +256,7 @@ export function Header() {
                 Каталог
               </span>
               {(categories as CatNode[]).map((c) => (
-                <DrawerCategoryBranch key={c.id} node={c} activeSlug={activeCategorySlug} />
+                <DrawerCategoryBranch key={c.id} node={c} activeSlug={activeCategorySlug} maxDepth={subcategoriesDepth} />
               ))}
 
               {infoItems.length > 0 && (
@@ -383,6 +386,7 @@ export function Header() {
                 onNavigate={closeMega}
                 pinned={megaPinned}
                 closing={megaClosing}
+                subcategoriesDepth={subcategoriesDepth}
               />
             )}
           </div>

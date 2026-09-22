@@ -192,6 +192,14 @@ export function FilterSidebar({
     return groups;
   }, [facets]);
 
+  /** Есть ли под заголовком категории что показывать (хотя бы один атрибут со значениями). */
+  const groupHasAttrs = (list: CatalogFilterAttr[]) =>
+    list.some(
+      (a) =>
+        (a.values?.length ?? 0) > 0 ||
+        (a.filter_mode === "numeric" && (a.min != null || a.max != null)),
+    );
+
   const toggle = <K extends keyof Filters>(key: K, value: string) => {
     const arr = filters[key] as string[];
     const next = arr.includes(value) ? arr.filter((v) => v !== value) : [...arr, value];
@@ -320,7 +328,8 @@ export function FilterSidebar({
 
         {facetGroups.map((group) => (
           <Fragment key={group.key || "attr-general"}>
-            {group.name && (
+            {/* Заголовок категории без атрибутов (пусто) не показываем */}
+            {group.name && groupHasAttrs(group.facets) && (
               <div className="border-t border-border px-1 pb-1 pt-4 text-body-sm font-semibold text-foreground">
                 {group.name}
               </div>

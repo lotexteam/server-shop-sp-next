@@ -15,14 +15,18 @@ const SUB_STEP = 4;
 
 function flattenMenuSubs(
   nodes: Array<{ id: string; slug: string; title: string; children?: unknown[] }>,
+  /** null — все уровни; 0 — не показывать подкатегории; N — N уровней */
+  maxDepth: number | null = null,
 ): Array<{ id: string; slug: string; title: string }> {
   const out: Array<{ id: string; slug: string; title: string }> = [];
+  if (maxDepth !== null && maxDepth <= 0) return out;
   for (const n of nodes) {
     out.push({ id: n.id, slug: n.slug, title: n.title });
     if (Array.isArray(n.children) && n.children.length) {
       out.push(
         ...flattenMenuSubs(
           n.children as Array<{ id: string; slug: string; title: string; children?: unknown[] }>,
+          maxDepth === null ? null : maxDepth - 1,
         ),
       );
     }
@@ -98,11 +102,14 @@ export function MegaMenu({
   onNavigate,
   pinned = false,
   closing = false,
+  /** Из GET /menus/header (subcategories_depth) — до какого уровня показывать подкатегории */
+  subcategoriesDepth = null,
 }: {
   onNavigate?: () => void;
   pinned?: boolean;
   /** Играет анимацию выхода: держит родитель через usePresence */
   closing?: boolean;
+  subcategoriesDepth?: number | null;
 }) {
   const { categories } = useCategories();
   /** CMS: GET /menus/mega — type=category | url for featured tiles */
@@ -126,7 +133,7 @@ export function MegaMenu({
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {categories.map((c) => {
             const Icon = getIcon(c.icon);
-            const kids = flattenMenuSubs(c.children ?? []);
+            const kids = flattenMenuSubs(c.children ?? [], subcategoriesDepth);
             return (
               <div key={c.id} className="min-w-0">
                 <Link

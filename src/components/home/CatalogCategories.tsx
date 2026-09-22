@@ -17,14 +17,18 @@ const HOME_SUB_ROW_PX = 40;
 
 function flattenHomeSubs(
   nodes: Array<{ id: string; slug: string; title: string; count?: number; children?: unknown[] }>,
+  /** null — все уровни; 0 — не показывать подкатегории; N — N уровней */
+  maxDepth: number | null = null,
 ): Array<{ id: string; slug: string; title: string; count: number }> {
   const out: Array<{ id: string; slug: string; title: string; count: number }> = [];
+  if (maxDepth !== null && maxDepth <= 0) return out;
   for (const n of nodes) {
     out.push({ id: n.id, slug: n.slug, title: n.title, count: n.count ?? 0 });
     if (Array.isArray(n.children) && n.children.length) {
       out.push(
         ...flattenHomeSubs(
           n.children as Array<{ id: string; slug: string; title: string; count?: number; children?: unknown[] }>,
+          maxDepth === null ? null : maxDepth - 1,
         ),
       );
     }
@@ -54,7 +58,7 @@ function categorySlugFromMenuItem(item: MenuNavItem): string | null {
 }
 
 export function CatalogCategories() {
-  const { items: homeMenu, loading: menuLoading } = useMenu("home");
+  const { items: homeMenu, loading: menuLoading, subcategoriesDepth } = useMenu("home");
   const { categories, loading: catsLoading } = useCategories();
 
   // Плитки главной — из CMS menus/home. Пока меню пустое — fallback:
@@ -114,7 +118,7 @@ export function CatalogCategories() {
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
       {tiles.map((c, i) => {
         const Icon = getIcon(c.icon);
-        const kids = flattenHomeSubs(c.children ?? []);
+        const kids = flattenHomeSubs(c.children ?? [], subcategoriesDepth);
 
         return (
           <Reveal key={c.id} delay={i * 0.04} className="h-full">
