@@ -6,6 +6,7 @@ import { ArrowRight, ChevronDown, Cpu, Star, Quote } from "lucide-react";
 import { Section, SectionHeader, Reveal } from "@/components/common/Section";
 import { WhyStorySection } from "@/components/home/WhyStorySection";
 import { HeroVideoStage } from "@/components/home/HeroVideoStage";
+import { LinkedText } from "@/components/common/LinkedText";
 import { CatalogCategories } from "@/components/home/CatalogCategories";
 import { ProductCard } from "@/components/ProductCard";
 import { Button } from "@/components/ui/button";
@@ -145,7 +146,11 @@ export function HomePage({ initialProducts }: { initialProducts?: Product[] }) {
                       className="hero-fit-lead max-w-lg text-white/80"
                       style={{ marginTop: "var(--hero-gap-md)" }}
                     >
-                      {hero.subtitle}
+                      <LinkedText
+                        segments={cmsHome?.textSegments?.["hero.subtitle"]}
+                        fallback={hero.subtitle}
+                        linkClassName="text-white underline decoration-primary underline-offset-2 hover:text-primary"
+                      />
                     </p>
                   ) : null}
                   <div
@@ -279,7 +284,13 @@ export function HomePage({ initialProducts }: { initialProducts?: Product[] }) {
             <div className="relative z-10 max-w-xl">
               {banner?.title ? <h2 className="text-h2 text-white">{banner.title}</h2> : null}
               {banner?.subtitle ? (
-                <p className="mt-3 text-body-lg text-white/90">{banner.subtitle}</p>
+                <p className="mt-3 text-body-lg text-white/90">
+                  <LinkedText
+                    segments={cmsHome?.textSegments?.["configurator_banner.subtitle"]}
+                    fallback={banner.subtitle}
+                    linkClassName="text-white underline decoration-primary underline-offset-2 hover:text-primary"
+                  />
+                </p>
               ) : null}
               <Button asChild size="lg" variant="secondary" className="mt-6 border-0 bg-white text-primary hover:bg-white/95">
                 {/^https?:\/\//i.test(banner?.href ?? "") ? (

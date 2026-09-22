@@ -1134,6 +1134,13 @@ export type HomeHero = {
 
 export type HomeBanner = { title: string; subtitle: string; cta: string; href: string };
 export type HomeSectionText = { eyebrow: string; title: string; action: string };
+
+/** Фрагмент текста из cms.home texts[].segments: href делает слово кликабельным */
+export type HomeTextSegment = {
+  text: string;
+  href?: string;
+};
+
 export type HomeSections = {
   categories: HomeSectionText;
   hotDeals: HomeSectionText;
@@ -1167,6 +1174,8 @@ export type HomeContent = {
     primary?: string;
     secondary?: string;
   };
+  /** Код → пословные фрагменты со ссылками (cms.home texts[].segments) */
+  textSegments: Record<string, HomeTextSegment[]>;
   raw: Record<string, unknown>;
 };
 
@@ -1204,6 +1213,7 @@ export async function fetchHomeContent(): Promise<HomeContent> {
     footerAbout: null,
     faq: [],
     reviews: [],
+    textSegments: {},
     raw: {},
   };
   try {
@@ -1269,6 +1279,23 @@ export async function fetchHomeContent(): Promise<HomeContent> {
     const textsRows = Array.isArray(d.texts)
       ? (d.texts as Array<Record<string, unknown>>)
       : [];
+
+    // Пословные ссылки: cms.home texts[].segments → код → фрагменты
+    const textSegments: Record<string, HomeTextSegment[]> = {};
+    for (const row of textsRows) {
+      const code = String(row?.code ?? "").trim();
+      const rawSegs = row?.segments;
+      if (!code || !Array.isArray(rawSegs)) continue;
+      const segs = (rawSegs as Array<Record<string, unknown>>)
+        .map(
+          (s): HomeTextSegment => ({
+            text: s?.text == null ? "" : String(s.text),
+            href: String(s?.href ?? "").trim() || undefined,
+          }),
+        )
+        .filter((s) => s.text !== "" || s.href);
+      if (segs.length) textSegments[code] = segs;
+    }
 
     // Поле блога или texts_map-код. texts_map приоритетнее: админ-тексты —
     // канонический источник, блоб sections/hero может отставать от них.
@@ -1384,6 +1411,7 @@ export async function fetchHomeContent(): Promise<HomeContent> {
         primary: cta.primary ? String(cta.primary) : undefined,
         secondary: cta.secondary ? String(cta.secondary) : undefined,
       },
+      textSegments,
       raw: d,
     };
   } catch {
