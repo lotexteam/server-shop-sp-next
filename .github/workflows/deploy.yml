@@ -3,6 +3,7 @@ name: Deploy
 on:
   workflow_dispatch:
   push:
+    branches: [main]
     tags: ["v*"]
 
 permissions:
@@ -17,7 +18,8 @@ concurrency:
 
 jobs:
   deploy:
-    runs-on: ubuntu-latest
+    # self-hosted раннер work-server (лейблы: self-hosted, Linux, X64)
+    runs-on: [self-hosted, Linux, X64]
     steps:
       - name: Check
         id: check
