@@ -5,6 +5,14 @@ on:
     branches: [main, master]
     tags: ["v*"]
   workflow_dispatch:
+    inputs:
+      runner:
+        description: "Где собирать образ"
+        type: choice
+        default: self-hosted
+        options:
+          - self-hosted
+          - ubuntu-latest
 
 permissions:
   contents: read
@@ -12,7 +20,8 @@ permissions:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    # push/тег — self-hosted (work-server, docker+buildx); dispatch может выбрать hosted
+    runs-on: ${{ inputs.runner || 'self-hosted' }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
