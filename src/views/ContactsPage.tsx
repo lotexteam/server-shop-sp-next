@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import dynamic from "next/dynamic";
 import {
   Phone,
   Mail,
@@ -32,6 +33,20 @@ import {
   StorefrontApiError,
   type ShopOrganization,
 } from "@/lib/api";
+
+// MapLibre GL тянет браузер-only CSS/JS — подключаем без SSR.
+const ContactsMapLibre = dynamic(
+  () =>
+    import("@/components/common/ContactsMapLibre").then(
+      (m) => m.ContactsMapLibre,
+    ),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="h-72 w-full min-h-[18rem] animate-pulse rounded-lg bg-muted lg:h-full" />
+    ),
+  },
+);
 
 function orgRows(org: ShopOrganization): Array<[string, string]> {
   const rows: Array<[string, string]> = [];
@@ -117,6 +132,14 @@ export function ContactsPage() {
 
   const faq = contacts?.faq ?? [];
   const mapEmbed = contacts?.mapEmbed?.trim() || "";
+  const ml = contacts?.maplibre;
+  // Провайдер выбирается в админке (Настройки → Контакты → Карта).
+  // maplibre без координат не рендерим — остаётся iframe-фолбэк.
+  const useMaplibre =
+    contacts?.mapProvider === "maplibre" &&
+    typeof ml?.lat === "number" &&
+    typeof ml?.lng === "number";
+  const hasMap = useMaplibre || mapEmbed !== "";
 
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -226,8 +249,19 @@ export function ContactsPage() {
         </p>
       )}
 
-      <div className={cn("mt-8 grid gap-6", mapEmbed ? "lg:grid-cols-2" : "")}>
-        {mapEmbed ? <ContactsMapEmbed html={mapEmbed} /> : null}
+      <div className={cn("mt-8 grid gap-6", hasMap ? "lg:grid-cols-2" : "")}>
+        {useMaplibre ? (
+          <div className="overflow-hidden rounded-lg border border-border bg-card shadow-card">
+            <ContactsMapLibre
+              lat={ml!.lat!}
+              lng={ml!.lng!}
+              zoom={ml!.zoom ?? 15}
+              title={ml!.title}
+            />
+          </div>
+        ) : mapEmbed ? (
+          <ContactsMapEmbed html={mapEmbed} />
+        ) : null}
 
         <form className="surface-card p-6" onSubmit={(e) => void onSubmit(e)}>
           <h2 className="text-h4">Обратная связь</h2>

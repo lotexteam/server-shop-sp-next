@@ -580,6 +580,14 @@ export type ShopContacts = {
     zoom: number;
   };
   mapEmbed: string | null;
+  /** "maplibre" — рендерить MapLibre GL по точке `maplibre`; иначе iframe `mapEmbed`. */
+  mapProvider: "iframe" | "maplibre";
+  maplibre: {
+    lat: number | null;
+    lng: number | null;
+    zoom: number | null;
+    title: string | null;
+  };
   site: ShopSite;
 };
 
@@ -769,6 +777,8 @@ export async function fetchContacts(): Promise<ShopContacts> {
     faq: [],
     map: { lat: null, lng: null, zoom: 10 },
     mapEmbed: null,
+    mapProvider: "iframe",
+    maplibre: { lat: null, lng: null, zoom: null, title: null },
     site: emptySite(),
   };
   try {
@@ -804,6 +814,12 @@ export async function fetchContacts(): Promise<ShopContacts> {
           zoom?: number;
         };
         map_embed?: string | null;
+        map_provider?: string | null;
+        maplibre?: {
+          center?: { lat?: number | null; lng?: number | null } | null;
+          zoom?: number | null;
+          title?: string | null;
+        } | null;
         site?: ApiSitePayload;
       }>
     >("/settings/contacts");
@@ -856,6 +872,22 @@ export async function fetchContacts(): Promise<ShopContacts> {
         zoom: d.yandex_map?.zoom ?? 10,
       },
       mapEmbed: typeof d.map_embed === "string" && d.map_embed.trim() ? d.map_embed : null,
+      mapProvider: d.map_provider === "maplibre" ? "maplibre" : "iframe",
+      maplibre: {
+        lat:
+          typeof d.maplibre?.center?.lat === "number"
+            ? d.maplibre.center.lat
+            : null,
+        lng:
+          typeof d.maplibre?.center?.lng === "number"
+            ? d.maplibre.center.lng
+            : null,
+        zoom: typeof d.maplibre?.zoom === "number" ? d.maplibre.zoom : null,
+        title:
+          typeof d.maplibre?.title === "string" && d.maplibre.title.trim()
+            ? d.maplibre.title
+            : null,
+      },
       site,
     };
   } catch {
