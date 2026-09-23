@@ -2,9 +2,10 @@
  * Стили MapLibre для карты контактов. Открытые стили OpenFreeMap не требуют
  * API-ключей; «custom» — свой JSON-стиль по https-URL из админки.
  *
- * maxZoom 18, а не 24: тайлы OpenFreeMap кончаются на z14, а z15+ приходят как
- * HTTP 200 с нулём байт — MapLibre растягивает пустые тайлы, и вместо карты
- * белый экран.
+ * maxZoom 18, а не 24: MapLibre v6 оверскейлит 4 уровня (zoomLevelsToOverscale)
+ * и просит тайлы вплоть до `maxZoom - 4`, а у OpenFreeMap данные кончаются на
+ * z14 (tilejson maxzoom 14). Тайлы глубже отсекает hasTile() — источник
+ * остаётся без тайлов вовсе, и вместо карты белый экран.
  */
 export type MapStyleName = "liberty" | "bright" | "positron" | "custom";
 
@@ -22,7 +23,7 @@ const STYLE_SOURCES: Record<MapStyleName, { url: string; maxZoom: number }> = {
     url: "https://tiles.openfreemap.org/styles/positron",
     maxZoom: 18,
   },
-  custom: { url: "", maxZoom: 22 },
+  custom: { url: "", maxZoom: 18 },
 };
 
 /** URL стиля; пустой/не-www https у custom → фолбэк на liberty. */
