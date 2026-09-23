@@ -257,6 +257,8 @@ export function ContactsPage() {
               lng={ml!.lng!}
               zoom={ml!.zoom ?? 15}
               title={ml!.title}
+              style={ml!.style}
+              styleUrl={ml!.styleUrl}
             />
           </div>
         ) : mapEmbed ? (

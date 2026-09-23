@@ -8,6 +8,7 @@ import type { ConfiguratorStatus, ProductStatus } from "@/data/types";
 import type { CartLine } from "@/store/shop";
 import { productImage } from "@/lib/placeholder";
 import { API_BASE } from "@/lib/api-base";
+import { mapStyleName, type MapStyleName } from "@/lib/mapStyles";
 
 const TOKEN_KEY = "server-price-api-token";
 const CART_TOKEN_KEY = "server-price-cart-token";
@@ -587,6 +588,9 @@ export type ShopContacts = {
     lng: number | null;
     zoom: number | null;
     title: string | null;
+    /** Открытый стиль OpenFreeMap или «custom» (свой JSON по https-URL). */
+    style: MapStyleName;
+    styleUrl: string | null;
   };
   site: ShopSite;
 };
@@ -778,7 +782,14 @@ export async function fetchContacts(): Promise<ShopContacts> {
     map: { lat: null, lng: null, zoom: 10 },
     mapEmbed: null,
     mapProvider: "iframe",
-    maplibre: { lat: null, lng: null, zoom: null, title: null },
+    maplibre: {
+      lat: null,
+      lng: null,
+      zoom: null,
+      title: null,
+      style: "liberty",
+      styleUrl: null,
+    },
     site: emptySite(),
   };
   try {
@@ -819,6 +830,8 @@ export async function fetchContacts(): Promise<ShopContacts> {
           center?: { lat?: number | null; lng?: number | null } | null;
           zoom?: number | null;
           title?: string | null;
+          style?: string | null;
+          style_url?: string | null;
         } | null;
         site?: ApiSitePayload;
       }>
@@ -886,6 +899,13 @@ export async function fetchContacts(): Promise<ShopContacts> {
         title:
           typeof d.maplibre?.title === "string" && d.maplibre.title.trim()
             ? d.maplibre.title
+            : null,
+        style: mapStyleName(d.maplibre?.style, d.maplibre?.style_url),
+        styleUrl:
+          d.maplibre?.style === "custom" &&
+          typeof d.maplibre?.style_url === "string" &&
+          d.maplibre.style_url.trim().startsWith("https://")
+            ? d.maplibre.style_url.trim()
             : null,
       },
       site,

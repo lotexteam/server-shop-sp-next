@@ -4,38 +4,49 @@ import { useEffect, useRef } from "react";
 import { Map as MLMap, Marker, NavigationControl, Popup } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { cn } from "@/lib/utils";
-
-const STYLE_URL = "https://tiles.openfreemap.org/styles/liberty";
+import {
+  mapStyleMaxZoom,
+  mapStyleUrl,
+  type MapStyleName,
+} from "@/lib/mapStyles";
 
 export type ContactsMapLibreProps = {
   lat: number;
   lng: number;
   zoom: number;
   title?: string | null;
+  /** Стиль из админки (Настройки → Контакты → Карта); по умолчанию liberty. */
+  style?: MapStyleName | null;
+  /** JSON-стиль по своему URL — работает только при style === "custom". */
+  styleUrl?: string | null;
   className?: string;
 };
 
 /**
- * Карта контактов на MapLibre GL (стиль OpenFreeMap — бесплатно, без API-ключей).
- * Точка настраивается в админке (Настройки → Контакты → Карта).
+ * Карта контактов на MapLibre GL (стили OpenFreeMap — бесплатно, без API-ключей,
+ * либо свой JSON-стиль). Точка настраивается в админке
+ * (Настройки → Контакты → Карта).
  */
 export function ContactsMapLibre({
   lat,
   lng,
   zoom,
   title,
+  style,
+  styleUrl,
   className,
 }: ContactsMapLibreProps) {
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!ref.current) return;
+    const maxZoom = mapStyleMaxZoom(style);
     const map = new MLMap({
       container: ref.current,
-      style: STYLE_URL,
+      style: mapStyleUrl(style, styleUrl),
       center: [lng, lat],
-      zoom,
-      maxZoom: 24,
+      zoom: Math.min(zoom, maxZoom),
+      maxZoom,
       // не перехватывать прокрутку страницы витрины
       scrollZoom: false,
     });
@@ -46,11 +57,14 @@ export function ContactsMapLibre({
         .setText(title)
         .addTo(map);
     }
-    map.addControl(new NavigationControl({ visualizePitch: false }), "top-left");
+    map.addControl(
+      new NavigationControl({ visualizePitch: false }),
+      "top-left",
+    );
     return () => {
       map.remove();
     };
-  }, [lat, lng, zoom, title]);
+  }, [lat, lng, zoom, title, style, styleUrl]);
 
   return (
     <div
