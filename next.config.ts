@@ -20,6 +20,12 @@ const nextConfig: NextConfig = {
   ...(process.env.NEXT_ASSET_PREFIX
     ? { assetPrefix: process.env.NEXT_ASSET_PREFIX }
     : {}),
+  // NEXT_ASSET_PREFIX — серверная переменная; клиенту (воркер MapLibre в
+  // ContactsMapLibre) нужна публичная копия, иначе URL воркера уйдёт без
+  // префикса и попадёт не в ту статику.
+  env: {
+    NEXT_PUBLIC_ASSET_PREFIX: process.env.NEXT_ASSET_PREFIX ?? "",
+  },
   // Компактный Node-контейнер: docker copy .next/standalone + static + public.
   output: "standalone",
   images: {

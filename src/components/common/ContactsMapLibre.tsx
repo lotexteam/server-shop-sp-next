@@ -1,8 +1,25 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { Map as MLMap, Marker, NavigationControl, Popup } from "maplibre-gl";
+import {
+  Map as MLMap,
+  Marker,
+  NavigationControl,
+  Popup,
+  setWorkerUrl,
+} from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
+
+// MapLibre 6.11 поднимает воркер по URL рядом с бандлом (`import.meta.url` →
+// `./maplibre-gl-worker.mjs`, он ещё импортит `./maplibre-gl-shared.mjs`).
+// Next отдаёт бандл как `/_next/static/chunks/<hash>.js` и на соседний путь
+// отвечает HTML — браузер отвергает его как модульный воркер (MIME text/html),
+// карта не рисуется. Файлы кладёт `scripts/copy-maplibre-worker.mjs` в
+// public/maplibre/. На single-domain деплое статика витрины живёт под
+// NEXT_ASSET_PREFIX (/shop-next), поэтому префикс обязателен.
+setWorkerUrl(
+  `${process.env.NEXT_PUBLIC_ASSET_PREFIX ?? ""}/maplibre/maplibre-gl-worker.mjs`,
+);
 import { cn } from "@/lib/utils";
 import {
   mapStyleMaxZoom,

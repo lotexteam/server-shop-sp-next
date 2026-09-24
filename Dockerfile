@@ -23,6 +23,10 @@ ENV APP_URL=$APP_URL
 ENV NEXT_ASSET_PREFIX=$NEXT_ASSET_PREFIX
 ENV NEXT_TELEMETRY_DISABLED=1
 
+# Воркер MapLibre — пара соседних ES-модулей, Next их по URL бандла не отдаёт
+# (см. scripts/copy-maplibre-worker.mjs). Не postinstall: npm ci выше видит
+# только package.json.
+RUN node scripts/copy-maplibre-worker.mjs
 RUN npm run build
 
 # ── Runtime (output: standalone) ─────────────────────────────────────
