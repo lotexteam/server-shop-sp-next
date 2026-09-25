@@ -76,7 +76,7 @@ type Props = {
 export function ConfigurableProductView({ product }: Props) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { addToCart, toggleFav, favorites, saveConfig, savedConfigs } = useShop();
+  const { addToCart, toggleFav, favorites, saveConfig, savedConfigs, cart } = useShop();
   const { isAuthenticated } = useAuth();
   const savedConfigId = searchParams.get("config");
   const shareToken = searchParams.get("share");
@@ -135,13 +135,17 @@ export function ConfigurableProductView({ product }: Props) {
     if (editBuild?.selections?.length) return editBuild;
     if (sharedBuild?.selections?.length) return sharedBuild;
     if (!savedConfigId) return null;
+    const fromCart = cart.find((l) => l.lineKey === savedConfigId && l.build?.selections?.length);
+    if (fromCart?.build && (fromCart.product.id === product.id || fromCart.product.slug === product.slug)) {
+      return fromCart.build;
+    }
     const found = savedConfigs.find((c) => c.id === savedConfigId);
     if (!found) return null;
     if (found.productId !== product.id && found.productSlug !== product.slug) {
       return null;
     }
     return found.build;
-  }, [editBuild, sharedBuild, savedConfigId, savedConfigs, product.id, product.slug]);
+  }, [editBuild, sharedBuild, savedConfigId, savedConfigs, cart, product.id, product.slug]);
 
   const state = useProductConfigurator(product.slug, initialBuild);
   const [warrantyTermId, setWarrantyTermId] = useState<string | null>(null);
