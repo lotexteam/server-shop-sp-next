@@ -22,6 +22,8 @@ type MetricaConfig = {
   trackhash?: boolean;
   accurate_track_bounce?: boolean;
   defer?: boolean;
+  /** Google Tag Manager container, e.g. GTM-MFZGK8P. Empty = off. */
+  gtm_id?: string;
 };
 
 /** productFieldObject (id or name required). */
@@ -79,6 +81,7 @@ export async function initMetrica(): Promise<void> {
     config = { enabled: false };
     return;
   }
+  installGtm(config.gtm_id);
   if (!config.enabled || !config.counter_id) return;
 
   // Ensure the data container exists before the tag loads.
@@ -111,6 +114,37 @@ export async function initMetrica(): Promise<void> {
   };
   if (config.ecommerce !== false) options.ecommerce = containerName();
   window.ym?.(Number(config.counter_id), "init", options);
+}
+
+/**
+ * Official GTM bootstrap: script as early as possible in head,
+ * noscript iframe immediately after the opening body tag.
+ */
+function installGtm(rawId?: string): void {
+  const id = (rawId || "").trim().toUpperCase();
+  if (!/^GTM-[A-Z0-9]+$/.test(id)) return;
+  if (document.querySelector(`script[data-gtm="${id}"]`)) return;
+
+  const w = window as unknown as Record<string, unknown>;
+  const layer = (w.dataLayer = (w.dataLayer as unknown[]) || []);
+  layer.push({ "gtm.start": Date.now(), event: "gtm.js" });
+
+  const script = document.createElement("script");
+  script.async = true;
+  script.dataset.gtm = id;
+  script.src = `https://www.googletagmanager.com/gtm.js?id=${id}`;
+  document.head.insertBefore(script, document.head.firstChild);
+
+  const noscript = document.createElement("noscript");
+  noscript.dataset.gtm = id;
+  const frame = document.createElement("iframe");
+  frame.src = `https://www.googletagmanager.com/ns.html?id=${id}`;
+  frame.height = "0";
+  frame.width = "0";
+  frame.style.display = "none";
+  frame.style.visibility = "hidden";
+  noscript.appendChild(frame);
+  document.body.insertBefore(noscript, document.body.firstChild);
 }
 
 /** Low-level push — kept public so new event kinds need no core changes. */
