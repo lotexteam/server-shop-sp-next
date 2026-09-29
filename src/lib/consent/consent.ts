@@ -202,8 +202,6 @@ function applyChoice(choice: ConsentChoice): void {
   if (snippets?.marketing?.length && choice.marketing) {
     snippets.marketing.forEach(injectSnippet);
   }
-  // Счетчик Яндекс.Метрики = категория «аналитические» (его домен — metrica.ts).
-  if (choice.analytics) void initMetrica();
 }
 
 /* ── Log ─────────────────────────────────────────────────────────── */
@@ -246,15 +244,15 @@ async function fetchConfig(): Promise<ConsentConfig> {
 }
 
 /**
- * Точка входа вместо прямого initMetrica(): решает, нужен ли баннер,
- * и запускает аналитику только при действующем согласии.
+ * Точка входа вместо прямого initMetrica(). Баннер решает только сторонние
+ * сниппеты. Метрика и GTM грузятся сразу: жёсткого требования ждать куки нет.
  * Вызывается один раз из main.tsx до монтирования React.
  */
 export async function initConsent(): Promise<void> {
+  void initMetrica();
   const config = await fetchConfig();
   if (!config.enabled) {
     setState({ phase: "disabled", config });
-    void initMetrica();
     return;
   }
 
@@ -266,7 +264,7 @@ export async function initConsent(): Promise<void> {
     return;
   }
 
-  // Нет действующего согласия: баннер покажется, трекеры заблокированы.
+  // Нет действующего согласия: баннер покажется, сторонние сниппеты ждут выбора.
   setState({ phase: "pending", config });
 }
 
