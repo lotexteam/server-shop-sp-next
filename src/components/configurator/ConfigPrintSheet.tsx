@@ -11,6 +11,7 @@ export type PrintRow = {
   unitPrice: number | null;
   qty: number | null;
   sum: number | null;
+  onRequest?: boolean;
 };
 
 type Props = {
@@ -54,7 +55,9 @@ export function ConfigPrintSheet({
     site?.pdfFooter ||
     (site?.title ? `Сформировано на сайте ${site.title}` : "Сформировано на сайте");
 
-  const money = (n: number | null) => (n == null ? "—" : formatPrice(n));
+  const money = (n: number | null, onRequest?: boolean) =>
+    onRequest ? "Под заказ" : n == null ? "—" : formatPrice(n);
+  const requestNotes = rows.filter((r) => r.onRequest && r.name);
 
   return (
     <div id="config-print-sheet" className="config-print-sheet">
@@ -126,11 +129,11 @@ export function ConfigPrintSheet({
             <tr key={`${r.slot}-${i}`}>
               <td className="border border-[#454545] px-2 py-1">{r.slot}</td>
               <td className="border border-[#454545] px-2 py-1">{r.name || "—"}</td>
-              <td className="border border-[#454545] px-2 py-1 text-center">{money(r.unitPrice)}</td>
+              <td className="border border-[#454545] px-2 py-1 text-center">{money(r.unitPrice, r.onRequest)}</td>
               <td className="border border-[#454545] px-2 py-1 text-center">
                 {r.qty == null ? "—" : r.qty}
               </td>
-              <td className="border border-[#454545] px-2 py-1 text-center">{money(r.sum)}</td>
+              <td className="border border-[#454545] px-2 py-1 text-center">{money(r.sum, r.onRequest)}</td>
             </tr>
           ))}
           {warrantyName ? (
@@ -154,6 +157,13 @@ export function ConfigPrintSheet({
         <br />
         {vatLabel}: <strong>{formatPrice(grand)}</strong>
       </div>
+      {requestNotes.length > 0 ? (
+        <div className="mt-4 text-[11px] leading-relaxed">
+          {requestNotes.map((r) => (
+            <p key={`${r.slot}-${r.name}`}>*{r.name} требует индивидуального просчета менеджером</p>
+          ))}
+        </div>
+      ) : null}
       <p className="mt-10 text-center text-[10px] text-muted-foreground">{footer}</p>
     </div>
   );

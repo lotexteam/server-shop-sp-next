@@ -253,13 +253,15 @@ export function ConfigurableProductView({ product }: Props) {
       unitPrice: number | null;
       qty: number | null;
       sum: number | null;
+      onRequest?: boolean;
     }> = [
       {
         slot: "Платформа",
         name: displayTitle,
-        unitPrice: state.basePrice,
+        unitPrice: activePlatform?.onRequest ? null : state.basePrice,
         qty: 1,
-        sum: state.basePrice,
+        sum: activePlatform?.onRequest ? null : state.basePrice,
+        onRequest: activePlatform?.onRequest,
       },
     ];
     if (state.cfg) {
@@ -273,15 +275,16 @@ export function ConfigurableProductView({ product }: Props) {
           rows.push({
             slot: slot.name,
             name: p.option.name,
-            unitPrice: p.option.price,
+            unitPrice: p.option.onRequest ? null : p.option.price,
             qty: p.qty,
-            sum: (p.option.price ?? 0) * p.qty,
+            sum: p.option.onRequest || p.option.price == null ? null : p.option.price * p.qty,
+            onRequest: p.option.onRequest,
           });
         }
       }
     }
     return rows;
-  }, [displayTitle, state.basePrice, state.cfg, state.selections]);
+  }, [displayTitle, activePlatform?.onRequest, state.basePrice, state.cfg, state.selections]);
 
   const printConfig = () => {
     document.body.classList.add("printing-config");
@@ -1010,7 +1013,14 @@ function PlatformPanel({
                   );
                 })
               : platforms
-            ).map((p) => {
+            )
+              .slice()
+              .sort((a, b) => {
+                const ap = a.onRequest || a.price == null ? Number.POSITIVE_INFINITY : a.price;
+                const bp = b.onRequest || b.price == null ? Number.POSITIVE_INFINITY : b.price;
+                return ap - bp;
+              })
+              .map((p) => {
               const active = p.id === currentProductId;
               return (
                 <li key={p.id}>
@@ -1160,6 +1170,11 @@ function SlotPanel({
     }
     return true;
   });
+  const pricedOptions = [...visibleOptions].sort((a, b) => {
+    const ap = a.onRequest || a.price == null ? Number.POSITIVE_INFINITY : a.price;
+    const bp = b.onRequest || b.price == null ? Number.POSITIVE_INFINITY : b.price;
+    return ap - bp;
+  });
 
   return (
     <section className="surface-card overflow-hidden">
@@ -1185,6 +1200,11 @@ function SlotPanel({
           >
             {summaryLine}
           </p>
+          {lineOnRequest ? (
+            <p className="mt-0.5 text-caption text-muted-foreground">
+              * данный товар требует индивидуального просчета стоимости
+            </p>
+          ) : null}
           {picks.length > 0 && (
             <p className="mt-0.5 text-caption text-muted-foreground">
               {units} шт.
@@ -1338,7 +1358,7 @@ function SlotPanel({
                 </button>
               </li>
             )}
-            {visibleOptions.map((opt) => {
+            {pricedOptions.map((opt) => {
               const active = selectedIds.has(opt.productId);
               const pick = picks.find((p) => p.productId === opt.productId);
               return (
