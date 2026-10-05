@@ -18,7 +18,7 @@
 
 import { useEffect } from "react";
 import { usePathname } from "next/navigation";
-import { trackHit } from "@/lib/analytics/metrica";
+import { trackGtmPageview, trackHit } from "@/lib/analytics/metrica";
 import { formatPageTitle, getCachedSite } from "@/lib/api";
 
 export function usePageMeta(title?: string | null, description?: string | null) {
@@ -37,6 +37,7 @@ export function ClientHead() {
   const pathname = usePathname();
   useEffect(() => {
     trackHit();
+    trackGtmPageview();
   }, [pathname]);
   return null;
 }

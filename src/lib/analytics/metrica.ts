@@ -51,6 +51,8 @@ export type PurchaseOrder = {
 
 let config: MetricaConfig | null = null;
 let initStarted = false;
+let configLoaded = false;
+const pendingHits: string[] = [];
 
 declare global {
   interface Window {
@@ -79,8 +81,9 @@ export async function initMetrica(): Promise<void> {
     config = res.ok ? ((await res.json()) as { data: MetricaConfig })?.data ?? { enabled: false } : { enabled: false };
   } catch {
     config = { enabled: false };
-    return;
   }
+  configLoaded = true;
+  if (!config.enabled || !config.counter_id) pendingHits.length = 0;
   installGtm(config.gtm_id);
   if (!config.enabled || !config.counter_id) return;
 
@@ -114,6 +117,7 @@ export async function initMetrica(): Promise<void> {
   };
   if (config.ecommerce !== false) options.ecommerce = containerName();
   window.ym?.(Number(config.counter_id), "init", options);
+  pendingHits.splice(0).forEach((url) => window.ym?.(Number(config!.counter_id), "hit", url));
 }
 
 /**
@@ -220,10 +224,25 @@ export function purchase(order: PurchaseOrder, products: MetricaProduct[]): void
  * change without a document reload.
  */
 export function trackHit(path?: string): void {
+  const url = path ?? window.location.pathname + window.location.search;
+  if (!configLoaded) {
+    pendingHits.push(url);
+    return;
+  }
   if (!config?.enabled || !config.counter_id) return;
-  const url = path
-    ?? window.location.pathname + window.location.search;
   window.ym?.(Number(config.counter_id), "hit", url);
+}
+
+/** Queue a page-view event for GTM on initial render and SPA navigation. */
+export function trackGtmPageview(path?: string): void {
+  const url = path ?? window.location.pathname + window.location.search;
+  const layer = (window.dataLayer = window.dataLayer || []);
+  layer.push({
+    event: "page_view",
+    page_path: url,
+    page_location: window.location.href,
+    page_title: document.title,
+  });
 }
 
 function currency(): string {
