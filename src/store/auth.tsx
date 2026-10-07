@@ -18,6 +18,7 @@ import {
   getAuthToken,
   loginCustomer,
   logoutCustomer,
+  normalizePhone,
   registerCustomer,
   resendRegistrationCode,
   setAuthToken,
@@ -27,6 +28,8 @@ import {
   type ApiAuthUser,
   type ApiLegalEntity,
 } from "@/lib/api";
+
+let registrationRequest: { key: string; promise: ReturnType<typeof registerCustomer> } | null = null;
 
 export interface UserProfile {
   id: string;
@@ -106,6 +109,7 @@ interface AuthState {
 }
 
 const STORAGE_KEY = "server-price-auth-v2";
+const PENDING_REGISTRATION_KEY = "server-price-pending-registration-v1";
 
 type Persisted = {
   isAuthenticated: boolean;
@@ -241,6 +245,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   /** Email регистрации, ожидающей подтверждения кодом (не персистится). */
   const [pendingEmail, setPendingEmail] = React.useState<string | null>(null);
 
+  React.useEffect(() => {
+    try {
+      const email = sessionStorage.getItem(PENDING_REGISTRATION_KEY);
+      if (email) setPendingEmail(email);
+    } catch {
+      /* ignore unavailable session storage */
+    }
+  }, []);
+
   /** Server truth for the address/legal-entity books (after auth). */
   const reloadBooks = React.useCallback(async () => {
     const [addrs, legals] = await Promise.all([apiFetchAddresses(), apiFetchLegalEntities()]);
@@ -363,16 +376,39 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     passwordConfirmation: string;
     phone?: string;
   }) => {
-    const res = await registerCustomer({
+    const payload = {
       name: data.name.trim(),
-      email: data.email.trim(),
+      email: data.email.trim().toLowerCase(),
       password: data.password,
       password_confirmation: data.passwordConfirmation,
-      phone: data.phone?.trim() || undefined,
-      type: "individual",
+      phone: normalizePhone(data.phone),
+      type: "individual" as const,
+    };
+    const key = JSON.stringify({
+      name: payload.name,
+      email: payload.email,
+      phone: payload.phone,
     });
+    if (!registrationRequest || registrationRequest.key !== key) {
+      const promise = registerCustomer(payload);
+      registrationRequest = { key, promise };
+      void promise.then(
+        () => {
+          if (registrationRequest?.promise === promise) registrationRequest = null;
+        },
+        () => {
+          if (registrationRequest?.promise === promise) registrationRequest = null;
+        },
+      );
+    }
+    const res = await registrationRequest.promise;
     // Аккаунт создан, но не активирован: ждём код из письма.
     setPendingEmail(res.email);
+    try {
+      sessionStorage.setItem(PENDING_REGISTRATION_KEY, res.email);
+    } catch {
+      /* ignore unavailable session storage */
+    }
     setAuthToken(null);
     setApiTokenState(null);
     setAuth(false);
@@ -390,6 +426,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setAddresses([]);
     setLegalEntities([]);
     setPendingEmail(null);
+    try {
+      sessionStorage.removeItem(PENDING_REGISTRATION_KEY);
+    } catch {
+      /* ignore unavailable session storage */
+    }
   };
 
   const resendEmailCode = async () => {
@@ -397,7 +438,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await resendRegistrationCode(pendingEmail);
   };
 
-  const clearPendingEmail = () => setPendingEmail(null);
+  const clearPendingEmail = () => {
+    setPendingEmail(null);
+    try {
+      sessionStorage.removeItem(PENDING_REGISTRATION_KEY);
+    } catch {
+      /* ignore unavailable session storage */
+    }
+  };
 
   const logout = () => {
     void logoutCustomer();

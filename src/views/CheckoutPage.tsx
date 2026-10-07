@@ -35,6 +35,7 @@ import {
   searchDellinTerminals,
   uploadOrderRequisites,
   StorefrontApiError,
+  normalizePhone,
   type CommerceMethod,
   type DellinCity,
   type DellinTerminal,
@@ -466,8 +467,9 @@ export function CheckoutPage() {
           const fd = new FormData(form);
           const name =
             String(fd.get("name") || (form.querySelector("#name") as HTMLInputElement | null)?.value || "").trim();
-          const phone =
-            String(fd.get("phone") || (form.querySelector("#phone") as HTMLInputElement | null)?.value || "").trim();
+          const phone = normalizePhone(
+            String(fd.get("phone") || (form.querySelector("#phone") as HTMLInputElement | null)?.value || ""),
+          );
           const email =
             String(fd.get("email") || (form.querySelector("#email") as HTMLInputElement | null)?.value || "").trim();
           const addr =

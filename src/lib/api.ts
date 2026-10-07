@@ -47,6 +47,19 @@ export function setCartToken(token: string | null) {
   }
 }
 
+export function normalizePhone(value: string | undefined): string | undefined {
+  const input = (value || "").trim();
+  if (!input) return undefined;
+  const digits = input.replace(/\D+/g, "");
+  if (!digits) return undefined;
+  if (digits.length === 11 && (digits[0] === "8" || digits[0] === "7")) {
+    return `+7${digits.slice(1)}`;
+  }
+  if (digits.length === 10 && digits[0] === "9") return `+7${digits}`;
+  if (input.startsWith("+") || digits.length >= 8) return `+${digits}`;
+  return undefined;
+}
+
 export class StorefrontApiError extends Error {
   status: number;
   code?: string;
@@ -109,11 +122,25 @@ async function request<T>(
       code?: string;
       errors?: Record<string, string[]>;
     };
-    throw new StorefrontApiError(
-      payload.message || `Ошибка API (${res.status})`,
-      res.status,
-      { code: payload.code, errors: payload.errors },
-    );
+    const rawMessage = payload.message || `Ошибка API (${res.status})`;
+    const fieldMessage = payload.errors?.phone?.[0] || payload.errors?.email?.[0] || "";
+    const message =
+      fieldMessage.includes("already been taken")
+        ? fieldMessage.includes("phone")
+          ? "Этот телефон уже привязан к аккаунту. Войдите или используйте другой номер."
+          : "Этот email уже зарегистрирован. Войдите или восстановите пароль."
+        : rawMessage.includes("users_phone_unique") ||
+            rawMessage.includes("Key (phone)=")
+        ? "Этот телефон уже привязан к аккаунту. Войдите или используйте другой номер."
+        : rawMessage.includes("users_email_unique") ||
+            rawMessage.includes("Key (email)=")
+          ? "Этот email уже зарегистрирован. Войдите или восстановите пароль."
+          : rawMessage;
+
+    throw new StorefrontApiError(message, res.status, {
+      code: payload.code,
+      errors: payload.errors,
+    });
   }
 
   return data as T;
