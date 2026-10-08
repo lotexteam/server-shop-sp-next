@@ -140,7 +140,7 @@ function mapApiAddress(a: ApiAddress): UserAddress {
     id: a.id,
     label: a.label || a.city || "Адрес",
     city: a.city,
-    street: [a.street, a.house, a.apartment].filter(Boolean).join(", ") || "",
+    street: [a.street, a.apartment].filter(Boolean).join(", ") || "",
     zip: a.postal_code || undefined,
     isDefault: Boolean(a.is_default),
     recipient: a.full_name || undefined,
