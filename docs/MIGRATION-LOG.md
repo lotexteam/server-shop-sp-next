@@ -1,5 +1,9 @@
 # Журнал миграции sp-ui → sp-next (рецепт для sale-ui)
 
+## 2026-10-08 — Preflight 404 для dynamic SEO URL
+
+Добавлен middleware preflight для `/product/*`, `/catalog/*` и `/blog/*`: при явном `kind=not_found` от Laravel `/seo/document` он возвращает HTTP 404 до начала Next streaming. При timeout, сетевой ошибке, redirect или существующей странице запрос передаётся дальше без изменения поведения. Проверено на standalone с production API: отсутствующая категория — 404, существующий товар — 200.
+
 ## 2026-10-08 — Зеркальный SEO SSR-аудит
 
 Во всех трёх Next-витринах убрана внешняя Suspense-граница вокруг page tree, а подтверждённый `kind=not_found` обрабатывается также в `generateMetadata` до рендера body. Неиспользуемый клиентский `fetchSeoDocument` удалён; серверный SEO-контракт Laravel и локальная Header Suspense-граница сохранены. `typecheck` и `build` прошли. HTTP 200 с телом 404 требует отдельной проверки после production deploy из-за streaming-ограничения Next 16.
