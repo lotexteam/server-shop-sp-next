@@ -20,7 +20,8 @@ export async function generateMetadata({ params, searchParams }: Props) {
   );
   // redirect_to is NOT handled here: redirect from generateMetadata
   // is unsupported in Next 16 (crashes Server Components render).
-  const { metadata } = await pageSeo(`/product/${slug}${qs.size ? `?${qs}` : ""}`, `/product/${slug}`);
+  const { metadata, notFound: isMissing } = await pageSeo(`/product/${slug}${qs.size ? `?${qs}` : ""}`, `/product/${slug}`);
+  if (isMissing) notFound();
   return metadata;
 }
 

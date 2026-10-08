@@ -1,4 +1,3 @@
-import { Suspense } from "react";
 import type { Metadata } from "next";
 import { SiteChrome } from "@/components/layout/SiteChrome";
 import { fetchSiteServer, formatPageTitleServer } from "@/lib/seo-server";
@@ -118,14 +117,8 @@ export default function RootLayout({
       </head>
       <body>
         {/* SSR отдаёт готовый HTML — loading-скелет #root:empty из index.html
-            больше не нужен. noscript-фолбэк сохранён дословно.
-            Suspense обязателен: страницы с useSearchParams (Catalog и др.)
-            и статический /_not-found не могут пререндериться без boundary. */}
-        <SiteChrome>
-          <Suspense fallback={<div className="min-h-[60vh]" aria-busy="true" />}>
-            {children}
-          </Suspense>
-        </SiteChrome>
+            больше не нужен. noscript-фолбэк сохранён дословно. */}
+        <SiteChrome>{children}</SiteChrome>
         <noscript>
           <div>
             <p>

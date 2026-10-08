@@ -732,45 +732,6 @@ export function formatPageTitle(
   return `${pageTitle} — ${suffix}`;
 }
 
-export type SeoDocument = {
-  kind: string;
-  http_status: number;
-  robots: string;
-  canonical: string;
-  title: string;
-  description: string;
-  h1: string;
-  image: string | null;
-  og_type?: string;
-  brand?: string | null;
-  image_alt?: string | null;
-  price_amount?: string | null;
-  price_currency?: string | null;
-  specs?: Array<{ name: string; value: string }> | null;
-  jsonld?: unknown[];
-  redirect_to?: string | null;
-};
-
-/**
- * Same payload as bot HTML (`SeoDocumentBuilder`).
- * Redirect documents are returned as-is (`redirect_to`) so the skin can send
- * the human to the canonical address instead of a 404 (plan.txt P0.2).
- */
-export async function fetchSeoDocument(path: string): Promise<SeoDocument | null> {
-  const origin = typeof window !== "undefined" ? window.location.origin : "";
-  const qs = new URLSearchParams({ path });
-  try {
-    const res = await request<ApiItem<SeoDocument>>(`/seo/document?${qs.toString()}`, {
-      headers: origin ? { "X-Seo-Site": origin } : undefined,
-    });
-    const doc = res.data;
-    if (!doc || doc.kind === "not_found") return null;
-    return doc;
-  } catch {
-    return null;
-  }
-}
-
 export async function fetchSite(): Promise<ShopSite> {
   try {
     const res = await request<ApiItem<ApiSitePayload>>("/settings/site");

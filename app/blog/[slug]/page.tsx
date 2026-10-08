@@ -12,7 +12,8 @@ export async function generateMetadata({ params }: Props) {
   const { slug } = await params;
   // redirect_to is NOT handled here: redirect from generateMetadata
   // is unsupported in Next 16 (crashes Server Components render).
-  const { metadata } = await pageSeo(`/blog/${slug}`, `/blog/${slug}`);
+  const { metadata, notFound: isMissing } = await pageSeo(`/blog/${slug}`, `/blog/${slug}`);
+  if (isMissing) notFound();
   return metadata;
 }
 
