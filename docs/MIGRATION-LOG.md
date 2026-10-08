@@ -1,5 +1,9 @@
 # Журнал миграции sp-ui → sp-next (рецепт для sale-ui)
 
+## 2026-10-08 — Styled preflight 404
+
+Preflight 404 теперь отдаёт полноценную inline-styled брендированную страницу вместо технического HTML: логотип, крупный код 404, текст, адаптивные кнопки «На главную» и «В каталог». HTTP status, noindex и fail-open поведение сохранены.
+
 ## 2026-10-08 — Preflight 404 для dynamic SEO URL
 
 Добавлен middleware preflight для `/product/*`, `/catalog/*` и `/blog/*`: при явном `kind=not_found` от Laravel `/seo/document` он возвращает HTTP 404 до начала Next streaming. При timeout, сетевой ошибке, redirect или существующей странице запрос передаётся дальше без изменения поведения. Проверено на standalone с production API: отсутствующая категория — 404, существующий товар — 200.
