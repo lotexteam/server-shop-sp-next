@@ -27,9 +27,11 @@ import {
   apiCheckoutPreview,
   apiPreviewBonusSpend,
   apiValidatePromoCode,
+  clearServerCart,
   placeCheckout,
   quoteShipping,
   resolveCartLineProductId,
+  shippingItemsWithBuilds,
   syncLocalCartToServer,
   searchDellinCities,
   searchDellinTerminals,
@@ -517,11 +519,11 @@ export function CheckoutPage() {
               const destination = resolveDellinDestination();
               let q = dellinQuote;
               if (!q?.quote_token) {
+                // build в котировке привязывает токен к составу сборок
+                // (items_hash_v2): checkout обязан прислать те же selections.
                 q = await quoteShipping({
                   delivery_method_code: delivery,
-                  items: serverCart.items
-                    .filter((i) => i.price_kind !== "warranty")
-                    .map((i) => ({ product_id: i.product_id || "", qty: i.qty })),
+                  items: shippingItemsWithBuilds(serverCart.items),
                   destination,
                   declared_value: cartTotal,
                 });
@@ -645,6 +647,10 @@ export function CheckoutPage() {
               },
               cart.map((l) => toMetricaProduct(l.product, { qty: l.qty })),
             );
+            // Очистка серверной корзины + инвалидация X-Cart-Token:
+            // токен без очистки воскресит оформленный заказ в серверной
+            // корзине при следующем открытии checkout (guest checkout).
+            void clearServerCart();
             clearCart();
             setDone(true);
           } catch (err) {

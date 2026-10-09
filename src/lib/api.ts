@@ -1541,7 +1541,14 @@ export type ShippingQuoteResult = {
 
 export async function quoteShipping(payload: {
   delivery_method_code: string;
-  items: Array<{ product_id: string; qty: number }>;
+  items: Array<{
+    product_id: string;
+    qty: number;
+    // Конфигурация Dellin: если в котировке присутствует build,
+    // checkout обязан передать те же selections → items_hash_v2.
+    // Иначе токен выдаётся build-agnostic (только product+qty).
+    build?: { selections: Array<{ slot_id: string; product_id: string; qty: number }> } | null;
+  }>;
   destination?: {
     city?: string;
     address?: string;
@@ -1556,6 +1563,34 @@ export async function quoteShipping(payload: {
     auth: false,
   });
   return res.data;
+}
+
+/** Привязать Dellin quote_token к составу сборок корзины (items_hash_v2).
+ * Без build в котировке токен build-agnostic — checkout со сборкой
+ * примет токен, но цена Dellin может не учесть вес комплектующих. */
+export function shippingItemsWithBuilds(
+  items: Array<ServerCartItem>,
+): Array<{
+  product_id: string;
+  qty: number;
+  build?: { selections: Array<{ slot_id: string; product_id: string; qty: number }> } | null;
+}> {
+  return items
+    .filter((i) => i.price_kind !== "warranty" && i.product_id)
+    .map((i) => {
+      const result: {
+        product_id: string;
+        qty: number;
+        build?: { selections: Array<{ slot_id: string; product_id: string; qty: number }> };
+      } = {
+        product_id: i.product_id || "",
+        qty: i.qty,
+      };
+      if (i.build?.selections?.length) {
+        result.build = i.build as { selections: Array<{ slot_id: string; product_id: string; qty: number }> };
+      }
+      return result;
+    });
 }
 
 export type DellinCity = { id: string; name: string; code?: string | null };
@@ -2607,6 +2642,21 @@ export async function apiCartRemoveItem(id: string): Promise<ServerCart> {
     method: "DELETE",
   });
   return res.data;
+}
+
+/** Полная очистка серверной корзины + инвалидация гостевого токена.
+ * Вызывается после успешного checkout: X-Cart-Token из localStorage
+ * иначе воскресит уже оформленный заказ при следующем открытии корзины. */
+export async function clearServerCart(): Promise<void> {
+  try {
+    const cart = await fetchServerCart();
+    for (const item of cart.items) {
+      await apiCartRemoveItem(item.id);
+    }
+  } catch {
+    /* корзина не обязана существовать — токен чистим в любом случае */
+  }
+  setCartToken(null);
 }
 
 export async function apiCartSetWarranty(
