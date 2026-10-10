@@ -60,7 +60,17 @@ github_git_fetch_and_pull() {
     git -C "$dir" stash push -m "update.sh $(date -u +%Y-%m-%dT%H:%M:%SZ)"
     echo "  Убрано в stash. Код берём с GitHub. .env / .env.prod не трогаем."
   fi
-  git -C "$dir" "${auth_args[@]}" merge --ff-only "origin/${branch}"
+  if ! git -C "$dir" "${auth_args[@]}" merge --ff-only "origin/${branch}"; then
+    # Ветка разошлась: на сервере есть локальные коммиты, которых нет в GitHub.
+    # Политика «код берём с GitHub» — сохраняем локальный HEAD в backup-ref
+    # (чтобы не потерять серверные правки) и жёстко встаём на origin. Секреты
+    # (.env / .env.prod) игнорируются, reset --hard их не трогает.
+    _bk="backup/update-$(date -u +%Y%m%dT%H%M%SZ)"
+    echo "  Ветка $branch разошлась с origin/$branch — сохраняю локальный HEAD в $_bk и синхронизирую с origin." >&2
+    git -C "$dir" branch -f "$_bk" HEAD
+    git -C "$dir" reset --hard "origin/${branch}"
+    echo "  Восстановить серверные правки: git -C $dir diff $_bk..$branch" >&2
+  fi
 }
 
 github_git_pull() {
