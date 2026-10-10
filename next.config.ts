@@ -50,6 +50,18 @@ const nextConfig: NextConfig = {
       { source: "/konfigurator", destination: "/configurator", permanent: true },
     ];
   },
+  // SEO: rewrite file-like URLs to Next.js routes
+  // Next.js doesn't handle route directories with file extensions properly,
+  // so we use rewrites to map the public URLs to internal route names.
+  async rewrites() {
+    return [
+      { source: "/llms.txt", destination: "/llms-txt" },
+      { source: "/ai-catalog.json", destination: "/ai-catalog-json" },
+      { source: "/.well-known/security.txt", destination: "/.well-known/security-txt" },
+      { source: "/.well-known/gpc.json", destination: "/.well-known/gpc-json" },
+      { source: "/.well-known/ai-plugin.json", destination: "/.well-known/ai-plugin-json" },
+    ];
+  },
 };
 
 export default nextConfig;
