@@ -60,6 +60,9 @@ const nextConfig: NextConfig = {
       { source: "/.well-known/security.txt", destination: "/.well-known/security-txt" },
       { source: "/.well-known/gpc.json", destination: "/.well-known/gpc-json" },
       { source: "/.well-known/ai-plugin.json", destination: "/.well-known/ai-plugin-json" },
+      { source: "/.well-known/ai-catalog.json", destination: "/.well-known/ai-catalog-json" },
+      // ARD manifest alias (Lighthouse agentic-browsing checks /.well-known/ard.json)
+      { source: "/.well-known/ard.json", destination: "/.well-known/ai-catalog-json" },
     ];
   },
 };
