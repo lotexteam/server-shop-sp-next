@@ -110,7 +110,37 @@ async function renderPrintWindow(printWindow: Window, title: string) {
     @media print {
       body { padding: 0; max-width: none; }
       .print-window-actions { display: none !important; }
-      .config-print-sheet { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      .config-print-sheet {
+        display: block !important;
+        width: 100% !important;
+        overflow: visible !important;
+        color: #111 !important;
+        background: #fff !important;
+        font-family: Arial, "Helvetica Neue", Helvetica, sans-serif !important;
+        font-size: 10pt !important;
+        line-height: 1.35 !important;
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+      }
+      .config-print-sheet > table { width: 100% !important; border-collapse: collapse !important; }
+      .config-print-sheet > table:first-of-type { font-size: 9pt !important; line-height: 1.35 !important; }
+      .config-print-sheet > table:first-of-type td { padding: 0 !important; border: 0 !important; }
+      .config-print-sheet > table:first-of-type td:first-child { width: 48% !important; text-align: left !important; }
+      .config-print-sheet > table:first-of-type td:nth-child(2) { width: 4% !important; }
+      .config-print-sheet > table:first-of-type td:last-child { width: 48% !important; text-align: right !important; }
+      .config-print-sheet h1 { margin: 28px 0 0 !important; text-align: center !important; font-size: 15pt !important; font-weight: 700 !important; text-transform: uppercase !important; }
+      .config-print-sheet > p:first-of-type { margin: 4px 0 0 !important; text-align: right !important; font-size: 9pt !important; }
+      .config-print-sheet > table:nth-of-type(2) { margin-top: 16px !important; font-size: 9pt !important; }
+      .config-print-sheet > table:nth-of-type(2) th,
+      .config-print-sheet > table:nth-of-type(2) td { border: 1px solid #454545 !important; padding: 4px 6px !important; }
+      .config-print-sheet > table:nth-of-type(2) th { background: #efefef !important; color: #111 !important; font-weight: 700 !important; }
+      .config-print-sheet > table:nth-of-type(2) th:nth-child(n+3),
+      .config-print-sheet > table:nth-of-type(2) td:nth-child(n+3) { text-align: center !important; }
+      .config-print-sheet > div { margin-top: 20px !important; text-align: right !important; font-size: 10pt !important; line-height: 1.5 !important; }
+      .config-print-sheet > div p { margin: 4px 0 0 !important; text-align: left !important; font-size: 9pt !important; }
+      .config-print-sheet img { max-width: 180px !important; max-height: 56px !important; object-fit: contain !important; }
+      .config-print-sheet > p:last-child { margin: 36px 0 0 !important; text-align: center !important; font-size: 8pt !important; color: #555 !important; }
+      .config-print-sheet tr { break-inside: avoid; }
       @page { size: A4; margin: 12mm; }
     }
   `;
@@ -390,7 +420,12 @@ export function ConfigurableProductView({ product }: Props) {
     printWindowRef.current = printWindow;
     try {
       const key = state.cfg.slug || state.cfg.productId;
-      const validation = await validateProductBuild(key, state.buildSelections);
+      const [validation, freshWarranty] = await Promise.all([
+        validateProductBuild(key, state.buildSelections),
+        warrantyChoice
+          ? fetchWarrantyOptions(key, { selections: state.buildSelections })
+          : Promise.resolve([]),
+      ]);
       if (!validation.ok) {
         push({
           variant: "error",
@@ -402,8 +437,7 @@ export function ConfigurableProductView({ product }: Props) {
         return;
       }
 
-      // Warranty prices are also re-read so a long-lived configurator link cannot print an old quote.
-      const freshWarranty = await fetchWarrantyOptions(key, { selections: state.buildSelections });
+      // Refresh selected warranty pricing alongside product validation for faster printing.
       const selectedWarranty = warrantyChoice
         ? freshWarranty.find((w) => w.termId === warrantyChoice.termId && w.packageId === warrantyChoice.packageId)
         : null;
