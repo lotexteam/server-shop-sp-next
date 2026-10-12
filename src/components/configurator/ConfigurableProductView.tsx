@@ -5,7 +5,7 @@
  * Не отдельная «страница конфигуратора» — layout ProductPage + слоты + sticky состав.
  * Платформы = admin-linked merge (API platforms), UI как у атрибутов-слотов.
  */
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -74,6 +74,82 @@ const UUID_RE =
 type Props = {
   product: Product;
 };
+
+async function renderPrintWindow(printWindow: Window, title: string) {
+  const sheet = document.getElementById("config-print-sheet");
+  if (printWindow.closed) return;
+  if (!sheet) throw new Error("Не удалось сформировать лист конфигурации");
+  const printDocument = printWindow.document;
+  printDocument.open();
+  printDocument.write('<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body></body></html>');
+  printDocument.close();
+  printDocument.title = title;
+  const base = printDocument.createElement("base");
+  base.href = document.baseURI;
+  printDocument.head.prepend(base);
+  const assets: Promise<void>[] = [];
+  document.querySelectorAll('link[rel="stylesheet"], style').forEach((node) => {
+    const clone = node.cloneNode(true);
+    if (clone.nodeName === "LINK") {
+      assets.push(new Promise<void>((resolve, reject) => {
+        clone.addEventListener("load", () => resolve(), { once: true });
+        clone.addEventListener("error", () => reject(new Error("Не удалось загрузить стили печати")), { once: true });
+      }));
+    }
+    printDocument.head.appendChild(clone);
+  });
+  const style = printDocument.createElement("style");
+  style.textContent = `
+    html, body { background: #fff; color: #111; }
+    body { margin: auto; padding: 12mm; width: 100%; max-width: 210mm; box-sizing: border-box; }
+    .config-print-sheet { display: block !important; color: #111; background: #fff; overflow-wrap: anywhere; }
+    .config-print-sheet tr { break-inside: avoid; }
+    .print-window-actions { display: flex; justify-content: flex-end; margin-bottom: 16px; }
+    .print-window-actions button { border: 1px solid #454545; background: #fff; padding: 7px 14px; cursor: pointer; }
+    .print-window-actions button:disabled { opacity: .5; cursor: wait; }
+    @media print {
+      body { padding: 0; max-width: none; }
+      .print-window-actions { display: none !important; }
+      .config-print-sheet { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      @page { size: A4; margin: 12mm; }
+    }
+  `;
+  printDocument.head.appendChild(style);
+  const actions = printDocument.createElement("div");
+  actions.className = "print-window-actions";
+  const button = printDocument.createElement("button");
+  button.type = "button";
+  button.textContent = "Печать";
+  button.disabled = true;
+  button.addEventListener("click", () => printWindow.print());
+  actions.appendChild(button);
+  printDocument.body.appendChild(actions);
+  // Clone only the React-rendered quote, without storefront markup or scripts.
+  printDocument.body.appendChild(sheet.cloneNode(true));
+  printDocument.querySelectorAll("img").forEach((img) => {
+    if (!img.complete) {
+      assets.push(new Promise<void>((resolve) => {
+        img.addEventListener("load", () => resolve(), { once: true });
+        img.addEventListener("error", () => resolve(), { once: true });
+      }));
+    }
+  });
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+  try {
+    await Promise.race([
+      Promise.all(assets).then(() => printDocument.fonts.ready),
+      new Promise<never>((_, reject) => {
+        timeout = setTimeout(() => reject(new Error("Не удалось загрузить макет печати. Повторите попытку")), 15000);
+      }),
+    ]);
+    if (!printWindow.closed) {
+      button.disabled = false;
+      printWindow.focus();
+    }
+  } finally {
+    clearTimeout(timeout);
+  }
+}
 
 export function ConfigurableProductView({ product }: Props) {
   const router = useRouter();
@@ -158,10 +234,13 @@ export function ConfigurableProductView({ product }: Props) {
   const [printing, setPrinting] = useState(false);
   const [printSnapshot, setPrintSnapshot] = useState<{
     rows: PrintRow[];
+    platformName: string;
+    qty: number;
     unitTotal: number;
     warrantyName?: string | null;
     warrantySum: number;
   } | null>(null);
+  const printWindowRef = useRef<Window | null>(null);
   const { push } = useToast();
 
   /** Platforms from admin API only (not «all servers in category»). */
@@ -296,83 +375,136 @@ export function ConfigurableProductView({ product }: Props) {
   }, [displayTitle, activePlatform?.onRequest, state.basePrice, state.cfg, state.selections]);
 
   const printConfig = async () => {
-    if (!state.cfg || state.incomplete || printing) return;
+    if (typeof window === "undefined" || typeof document === "undefined" || !state.cfg || state.incomplete || printing || warrantyLoading || printWindowRef.current) return;
     setPrinting(true);
     setPrintSnapshot(null);
+    const printWindow = window.open("", "_blank");
+    if (!printWindow) {
+      setPrinting(false);
+      push({ variant: "error", title: "Не удалось открыть окно печати", description: "Разрешите всплывающие окна для сайта и повторите попытку" });
+      return;
+    }
+    printWindow.opener = null;
+    printWindow.document.title = "Подготовка конфигурации";
+    printWindow.document.body.textContent = "Проверяем доступность и цены...";
+    printWindowRef.current = printWindow;
     try {
       const key = state.cfg.slug || state.cfg.productId;
       const validation = await validateProductBuild(key, state.buildSelections);
       if (!validation.ok) {
-        push({ variant: "error", title: "Конфигурация изменилась", description: validation.errors[0] || "Обновите страницу и выберите доступные комплектующие снова" });
+        push({
+          variant: "error",
+          title: "Конфигурация изменилась",
+          description: validation.errors[0] || "Обновите страницу и выберите доступные комплектующие снова",
+        });
+        printWindow.close();
+        printWindowRef.current = null;
         return;
       }
+
+      // Warranty prices are also re-read so a long-lived configurator link cannot print an old quote.
       const freshWarranty = await fetchWarrantyOptions(key, { selections: state.buildSelections });
       const selectedWarranty = warrantyChoice
         ? freshWarranty.find((w) => w.termId === warrantyChoice.termId && w.packageId === warrantyChoice.packageId)
         : null;
       if (warrantyChoice && !selectedWarranty) {
-        push({ variant: "error", title: "Гарантия изменилась", description: "Обновите страницу и выберите доступный вариант гарантии снова" });
+        push({
+          variant: "error",
+          title: "Гарантия изменилась",
+          description: "Обновите страницу и выберите доступный вариант гарантии снова",
+        });
+        printWindow.close();
+        printWindowRef.current = null;
         return;
       }
-    const freshLines = validation.lines as Array<{
-      slot_id?: string;
-      slot_name?: string;
-      name?: string;
-      unit_display?: number | null;
-      line_display?: number | null;
-      qty?: number;
-      on_request?: boolean;
-    }>;
-    const parent = validation.parent;
-    const parentOnRequest = Boolean(parent?.on_request || activePlatform?.onRequest);
-    const rows: PrintRow[] = [{
-      slot: "Платформа",
-      name: parent?.name || displayTitle,
-      unitPrice: parentOnRequest ? null : parent?.price_display ?? state.basePrice,
-      qty: 1,
-      sum: parentOnRequest ? null : parent?.price_display ?? state.basePrice,
-      onRequest: parentOnRequest,
-    }];
-    for (const slot of state.cfg.slots) {
-      const selected = freshLines.filter((line) => line.slot_id === slot.id);
-      if (!selected.length) {
-        rows.push({ slot: slot.name, name: "—", unitPrice: null, qty: null, sum: null });
-        continue;
+
+      const freshLines = validation.lines as Array<{
+        slot_id?: string;
+        slot_name?: string;
+        name?: string;
+        unit_display?: number | null;
+        line_display?: number | null;
+        qty?: number;
+        on_request?: boolean;
+      }>;
+      const parent = validation.parent;
+      const parentOnRequest = Boolean(parent?.on_request);
+      const rows: PrintRow[] = [{
+        slot: "Платформа",
+        name: parent?.name || displayTitle,
+        unitPrice: parentOnRequest ? null : parent?.price_display ?? null,
+        qty: 1,
+        sum: parentOnRequest ? null : parent?.price_display ?? null,
+        onRequest: parentOnRequest,
+      }];
+      for (const slot of state.cfg.slots) {
+        const selected = freshLines.filter((line) => line.slot_id === slot.id);
+        if (!selected.length) {
+          rows.push({ slot: slot.name, name: "—", unitPrice: null, qty: null, sum: null });
+          continue;
+        }
+        for (const line of selected) {
+          const onRequest = Boolean(line.on_request);
+          rows.push({
+            slot: line.slot_name || slot.name,
+            name: line.name || "—",
+            unitPrice: onRequest ? null : line.unit_display ?? null,
+            qty: line.qty ?? 1,
+            sum: onRequest ? null : line.line_display ?? null,
+            onRequest,
+          });
+        }
       }
-      for (const line of selected) {
-        const onRequest = Boolean(line.on_request);
-        rows.push({
-          slot: line.slot_name || slot.name,
-          name: line.name || "—",
-          unitPrice: onRequest ? null : line.unit_display ?? null,
-          qty: line.qty ?? 1,
-          sum: onRequest ? null : line.line_display ?? null,
-          onRequest,
-        });
-      }
-    }
       const freshWarrantyExtra = selectedWarranty?.isPaid ? selectedWarranty.price : 0;
-      setPrintSnapshot({ rows, unitTotal: validation.total + freshWarrantyExtra, warrantyName: selectedWarranty?.name, warrantySum: freshWarrantyExtra });
-      document.body.classList.add("printing-config");
-      let cleaned = false;
-      const done = () => {
-        if (cleaned) return;
-        cleaned = true;
-        document.body.classList.remove("printing-config");
-        window.removeEventListener("afterprint", done);
-        window.clearTimeout(fallback);
-        setPrintSnapshot(null);
-        setPrinting(false);
-      };
-      const fallback = window.setTimeout(done, 15000);
-      window.addEventListener("afterprint", done);
-      window.setTimeout(() => window.print(), 80);
+      if (printWindow.closed || printWindowRef.current !== printWindow) {
+        printWindowRef.current = null;
+        return;
+      }
+      setPrintSnapshot({
+        rows,
+        platformName: parent?.name || displayTitle,
+        qty,
+        unitTotal: validation.total + freshWarrantyExtra,
+        warrantyName: selectedWarranty?.name,
+        warrantySum: freshWarrantyExtra,
+      });
     } catch (error) {
-      push({ variant: "error", title: "Не удалось подготовить печать", description: error instanceof Error ? error.message : "Попробуйте ещё раз" });
+      setPrintSnapshot(null);
+      printWindow.close();
+      printWindowRef.current = null;
+      push({
+        variant: "error",
+        title: "Не удалось подготовить печать",
+        description: error instanceof Error ? error.message : "Попробуйте ещё раз",
+      });
     } finally {
-      if (!document.body.classList.contains("printing-config")) setPrinting(false);
+      if (!printWindowRef.current) setPrinting(false);
     }
   };
+
+  useEffect(() => {
+    if (!printSnapshot || !printWindowRef.current) return;
+    const frame = window.requestAnimationFrame(() => {
+      const printWindow = printWindowRef.current;
+      if (!printWindow) return;
+      void renderPrintWindow(printWindow, `Конфигурация ${printSnapshot.platformName}`)
+        .catch((error: unknown) => {
+          printWindow.close();
+          push({ variant: "error", title: "Не удалось подготовить печать", description: error instanceof Error ? error.message : "Попробуйте ещё раз" });
+        })
+        .finally(() => {
+          printWindowRef.current = null;
+          setPrintSnapshot(null);
+          setPrinting(false);
+        });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [printSnapshot, push]);
+
+  useEffect(() => () => {
+    printWindowRef.current?.close();
+    printWindowRef.current = null;
+  }, []);
 
   useEffect(() => {
     if (!warrantyOptions.length) return;
@@ -992,9 +1124,9 @@ export function ConfigurableProductView({ product }: Props) {
 
       {createPortal(
         <ConfigPrintSheet
-          platformName={displayTitle}
+          platformName={printSnapshot?.platformName || displayTitle}
           rows={printSnapshot?.rows || printRows}
-          qty={qty}
+          qty={printSnapshot?.qty ?? qty}
           unitTotal={printSnapshot?.unitTotal ?? (state.total + warrantyExtra)}
           warrantyName={printSnapshot?.warrantyName ?? warrantyChoice?.name}
           warrantySum={printSnapshot?.warrantySum ?? warrantyExtra}

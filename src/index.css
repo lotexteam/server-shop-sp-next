@@ -172,16 +172,6 @@
 
 @media print {
   html { scroll-behavior: auto !important; }
-  /* Лист рендерится порталом в body: прячем приложение целиком,
-     чтобы скрытый контент страницы не создавал пустые листы */
-  body.printing-config #root { display: none !important; }
-  body.printing-config .config-print-sheet {
-    display: block !important;
-    color: #1F2430;
-    background: #fff;
-    -webkit-print-color-adjust: exact;
-    print-color-adjust: exact;
-  }
   @page {
     margin: 12mm;
   }
