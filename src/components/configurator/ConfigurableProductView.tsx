@@ -55,8 +55,6 @@ import {
   apiCreatePublicShareBuild,
   apiFetchSharedBuild,
   fetchProduct,
-  fetchWarrantyOptions,
-  validateProductBuild,
   storefrontShareUrl,
   StorefrontApiError,
   type ConfiguratorFilterDef,
@@ -404,8 +402,8 @@ export function ConfigurableProductView({ product }: Props) {
     return rows;
   }, [displayTitle, activePlatform?.onRequest, state.basePrice, state.cfg, state.selections]);
 
-  const printConfig = async () => {
-    if (typeof window === "undefined" || typeof document === "undefined" || !state.cfg || state.incomplete || printing || warrantyLoading || printWindowRef.current) return;
+  const printConfig = () => {
+    if (typeof window === "undefined" || typeof document === "undefined" || !state.cfg || state.incomplete || printing || printWindowRef.current) return;
     setPrinting(true);
     setPrintSnapshot(null);
     const printWindow = window.open("", "_blank");
@@ -416,104 +414,14 @@ export function ConfigurableProductView({ product }: Props) {
     }
     printWindow.opener = null;
     printWindow.document.title = "Подготовка конфигурации";
-    printWindow.document.body.textContent = "Проверяем доступность и цены...";
+    printWindow.document.body.textContent = "Подготавливаем конфигурацию...";
     printWindowRef.current = printWindow;
-    try {
-      const key = state.cfg.slug || state.cfg.productId;
-      const [validation, freshWarranty] = await Promise.all([
-        validateProductBuild(key, state.buildSelections),
-        warrantyChoice
-          ? fetchWarrantyOptions(key, { selections: state.buildSelections })
-          : Promise.resolve([]),
-      ]);
-      if (!validation.ok) {
-        push({
-          variant: "error",
-          title: "Конфигурация изменилась",
-          description: validation.errors[0] || "Обновите страницу и выберите доступные комплектующие снова",
-        });
-        printWindow.close();
-        printWindowRef.current = null;
-        return;
-      }
-
-      // Refresh selected warranty pricing alongside product validation for faster printing.
-      const selectedWarranty = warrantyChoice
-        ? freshWarranty.find((w) => w.termId === warrantyChoice.termId && w.packageId === warrantyChoice.packageId)
-        : null;
-      if (warrantyChoice && !selectedWarranty) {
-        push({
-          variant: "error",
-          title: "Гарантия изменилась",
-          description: "Обновите страницу и выберите доступный вариант гарантии снова",
-        });
-        printWindow.close();
-        printWindowRef.current = null;
-        return;
-      }
-
-      const freshLines = validation.lines as Array<{
-        slot_id?: string;
-        slot_name?: string;
-        name?: string;
-        unit_display?: number | null;
-        line_display?: number | null;
-        qty?: number;
-        on_request?: boolean;
-      }>;
-      const parent = validation.parent;
-      const parentOnRequest = Boolean(parent?.on_request);
-      const rows: PrintRow[] = [{
-        slot: "Платформа",
-        name: parent?.name || displayTitle,
-        unitPrice: parentOnRequest ? null : parent?.price_display ?? null,
-        qty: 1,
-        sum: parentOnRequest ? null : parent?.price_display ?? null,
-        onRequest: parentOnRequest,
-      }];
-      for (const slot of state.cfg.slots) {
-        const selected = freshLines.filter((line) => line.slot_id === slot.id);
-        if (!selected.length) {
-          rows.push({ slot: slot.name, name: "—", unitPrice: null, qty: null, sum: null });
-          continue;
-        }
-        for (const line of selected) {
-          const onRequest = Boolean(line.on_request);
-          rows.push({
-            slot: line.slot_name || slot.name,
-            name: line.name || "—",
-            unitPrice: onRequest ? null : line.unit_display ?? null,
-            qty: line.qty ?? 1,
-            sum: onRequest ? null : line.line_display ?? null,
-            onRequest,
-          });
-        }
-      }
-      const freshWarrantyExtra = selectedWarranty?.isPaid ? selectedWarranty.price : 0;
-      if (printWindow.closed || printWindowRef.current !== printWindow) {
-        printWindowRef.current = null;
-        return;
-      }
-      setPrintSnapshot({
-        rows,
-        platformName: parent?.name || displayTitle,
-        qty,
-        unitTotal: validation.total + freshWarrantyExtra,
-        warrantyName: selectedWarranty?.name,
-        warrantySum: freshWarrantyExtra,
-      });
-    } catch (error) {
-      setPrintSnapshot(null);
-      printWindow.close();
+    if (printWindow.closed || printWindowRef.current !== printWindow) {
       printWindowRef.current = null;
-      push({
-        variant: "error",
-        title: "Не удалось подготовить печать",
-        description: error instanceof Error ? error.message : "Попробуйте ещё раз",
-      });
-    } finally {
-      if (!printWindowRef.current) setPrinting(false);
+      setPrinting(false);
+      return;
     }
+    setPrintSnapshot({ rows: printRows, platformName: displayTitle, qty, unitTotal: state.total + warrantyExtra, warrantyName: warrantyChoice?.name, warrantySum: warrantyExtra });
   };
 
   useEffect(() => {
