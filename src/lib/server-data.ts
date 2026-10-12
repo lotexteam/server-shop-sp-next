@@ -227,7 +227,7 @@ export function mapApiProduct(p: ApiProduct): Product {
     images: gallery.length ? gallery : undefined,
     price: display == null ? null : Number(display),
     oldPrice: compare != null && display != null && compare > display ? Number(compare) : null,
-    onRequest: p.price?.is_on_request === true || display === null,
+    onRequest: p.price?.is_on_request === true,
     status: p.status ?? null,
     configuratorStatus: p.status_configurator ?? null,
     condition: p.is_new ? "new" : "used",
