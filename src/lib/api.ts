@@ -83,10 +83,37 @@ export class StorefrontApiError extends Error {
 export type ApiItem<T> = { data: T; meta?: Record<string, number> };
 
 const MAX_PUBLIC_GETS = 3;
-const MAX_RATE_LIMIT_RETRIES = 2;
+const PUBLIC_CACHE_TTL_MS = 20_000;
 let activePublicGets = 0;
 const publicGetQueue: Array<() => void> = [];
 let nextPublicGetAt = 0;
+
+function publicCacheKey(input: RequestInfo | URL): string | null {
+  const url = String(input);
+  if (!/^https?:\/\//i.test(url)) return null;
+  if (!/(\/settings\/|\/menus\/|\/categories(?:\?|$)|\/consent\/config|\/metrica\/config|\/products\/)/.test(url)) return null;
+  return `storefront-public:${url}`;
+}
+
+async function readCachedPublicResponse(key: string): Promise<Response | null> {
+  try {
+    const raw = sessionStorage.getItem(key);
+    if (!raw) return null;
+    const cached = JSON.parse(raw) as { expiresAt: number; status: number; body: string; headers: [string, string][] };
+    if (!cached.expiresAt || cached.expiresAt <= Date.now()) {
+      sessionStorage.removeItem(key);
+      return null;
+    }
+    return new Response(cached.body, { status: cached.status, headers: cached.headers });
+  } catch { return null; }
+}
+
+async function cachePublicResponse(key: string, response: Response) {
+  if (!response.ok) return;
+  try {
+    sessionStorage.setItem(key, JSON.stringify({ expiresAt: Date.now() + PUBLIC_CACHE_TTL_MS, status: response.status, body: await response.clone().text(), headers: Array.from(response.headers.entries()) }));
+  } catch { /* storage is optional */ }
+}
 
 function drainPublicGetQueue() {
   while (activePublicGets < MAX_PUBLIC_GETS && publicGetQueue.length) {
@@ -107,12 +134,6 @@ function schedulePublicGet<T>(task: () => Promise<T>): Promise<T> {
   });
 }
 
-function retryDelay(response: Response, attempt: number): number {
-  const retryAfter = Number(response.headers.get("Retry-After"));
-  if (Number.isFinite(retryAfter) && retryAfter >= 0) return Math.min(retryAfter * 1000, 3000);
-  return 300 * 2 ** attempt;
-}
-
 async function waitForPublicGetSlot() {
   const now = Date.now();
   const wait = Math.max(0, nextPublicGetAt - now);
@@ -125,15 +146,16 @@ export async function fetchPublic(
   init: RequestInit = {},
 ): Promise<Response> {
   const isGet = (init.method || "GET").toUpperCase() === "GET";
+  const cacheKey = isGet && !new Headers(init.headers).has("Authorization") ? publicCacheKey(input) : null;
+  if (cacheKey) {
+    const cached = await readCachedPublicResponse(cacheKey);
+    if (cached) return cached;
+  }
   const run = async () => {
-    for (let attempt = 0; ; attempt += 1) {
-      if (isGet) await waitForPublicGetSlot();
-      const response = await fetch(input, init);
-      if (response.status !== 429 || attempt >= MAX_RATE_LIMIT_RETRIES) return response;
-      const delay = retryDelay(response, attempt);
-      nextPublicGetAt = Math.max(nextPublicGetAt, Date.now() + delay);
-      await new Promise((resolve) => setTimeout(resolve, delay));
-    }
+    if (isGet) await waitForPublicGetSlot();
+    const response = await fetch(input, init);
+    if (cacheKey) await cachePublicResponse(cacheKey, response);
+    return response;
   };
   return isGet ? schedulePublicGet(run) : run();
 }
@@ -518,7 +540,8 @@ export async function fetchProduct(idOrSlug: string): Promise<Product | null> {
   try {
     const res = await request<ApiItem<ApiProduct>>(`/products/${encodeURIComponent(key)}`);
     return res.data ? mapApiProduct(res.data) : null;
-  } catch {
+  } catch (error) {
+    if (error instanceof StorefrontApiError && error.status === 429) return null;
     try {
       const { items } = await fetchProducts({ q: key, per_page: 50 });
       return (
@@ -621,7 +644,8 @@ export async function fetchProductIdBySlug(slug: string): Promise<string | null>
   try {
     const res = await request<ApiItem<ApiProduct>>(`/products/${encodeURIComponent(slug)}`);
     return res.data?.id ?? null;
-  } catch {
+  } catch (error) {
+    if (error instanceof StorefrontApiError && error.status === 429) return null;
     // list search fallback
     try {
       const { items } = await fetchProducts({ q: slug, per_page: 50 });
