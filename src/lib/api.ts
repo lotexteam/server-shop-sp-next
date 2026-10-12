@@ -64,17 +64,19 @@ export class StorefrontApiError extends Error {
   status: number;
   code?: string;
   errors?: Record<string, string[]>;
+  details?: string[];
 
   constructor(
     message: string,
     status: number,
-    payload?: { code?: string; errors?: Record<string, string[]> },
+    payload?: { code?: string; errors?: Record<string, string[]>; details?: string[] },
   ) {
     super(message);
     this.name = "StorefrontApiError";
     this.status = status;
     this.code = payload?.code;
     this.errors = payload?.errors;
+    this.details = payload?.details;
   }
 }
 
@@ -121,8 +123,12 @@ async function request<T>(
       message?: string;
       code?: string;
       errors?: Record<string, string[]>;
+      data?: { errors?: unknown };
     };
-    const rawMessage = payload.message || `Ошибка API (${res.status})`;
+    const details = Array.isArray(payload.data?.errors)
+      ? payload.data.errors.filter((value): value is string => typeof value === "string")
+      : [];
+    const rawMessage = payload.message || details[0] || `Ошибка API (${res.status})`;
     const fieldMessage = payload.errors?.phone?.[0] || payload.errors?.email?.[0] || "";
     const message =
       fieldMessage.includes("already been taken")
@@ -140,6 +146,7 @@ async function request<T>(
     throw new StorefrontApiError(message, res.status, {
       code: payload.code,
       errors: payload.errors,
+      details,
     });
   }
 
@@ -2163,7 +2170,12 @@ export async function validateProductBuild(
     };
   } catch (e) {
     if (e instanceof StorefrontApiError) {
-      return { ok: false, total: 0, errors: [e.message], warnings: [], lines: [] };
+      const errors = e.details?.length
+        ? e.details
+        : e.errors
+          ? Object.values(e.errors).flat()
+          : [e.message];
+      return { ok: false, total: 0, errors, warnings: [], lines: [] };
     }
     return { ok: false, total: 0, errors: ["Ошибка валидации"], warnings: [], lines: [] };
   }
