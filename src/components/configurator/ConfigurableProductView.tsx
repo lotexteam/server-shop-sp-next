@@ -6,6 +6,7 @@
  * Платформы = admin-linked merge (API platforms), UI как у атрибутов-слотов.
  */
 import { useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
@@ -36,7 +37,7 @@ import { Table, TableBody, TableCell, TableRow } from "@/components/ui/table";
 import { formatPrice, cn } from "@/lib/utils";
 import { categoryHref } from "@/lib/api";
 import { VatHint } from "@/components/common/Price";
-import { fetchConfigurationPdf } from "@/lib/configuration-pdf";
+import { ConfigPrintSheet, type PrintRow } from "@/components/configurator/ConfigPrintSheet";
 import { useShop } from "@/store/shop";
 import { useAuth } from "@/store/auth";
 import { useToast } from "@/components/ui/toast";
@@ -54,6 +55,8 @@ import {
   apiCreatePublicShareBuild,
   apiFetchSharedBuild,
   fetchProduct,
+  fetchWarrantyOptions,
+  validateProductBuild,
   storefrontShareUrl,
   StorefrontApiError,
   type ConfiguratorFilterDef,
@@ -153,6 +156,12 @@ export function ConfigurableProductView({ product }: Props) {
   const [saving, setSaving] = useState(false);
   const [sharing, setSharing] = useState(false);
   const [printing, setPrinting] = useState(false);
+  const [printSnapshot, setPrintSnapshot] = useState<{
+    rows: PrintRow[];
+    unitTotal: number;
+    warrantyName?: string | null;
+    warrantySum: number;
+  } | null>(null);
   const { push } = useToast();
 
   /** Platforms from admin API only (not «all servers in category»). */
@@ -246,37 +255,122 @@ export function ConfigurableProductView({ product }: Props) {
     null;
   const warrantyExtra = warrantyChoice?.isPaid ? warrantyChoice.price : 0;
 
+  const printRows = useMemo(() => {
+    const rows: Array<{
+      slot: string;
+      name: string;
+      unitPrice: number | null;
+      qty: number | null;
+      sum: number | null;
+      onRequest?: boolean;
+    }> = [
+      {
+        slot: "Платформа",
+        name: displayTitle,
+        unitPrice: activePlatform?.onRequest ? null : state.basePrice,
+        qty: 1,
+        sum: activePlatform?.onRequest ? null : state.basePrice,
+        onRequest: activePlatform?.onRequest,
+      },
+    ];
+    if (state.cfg) {
+      for (const slot of state.cfg.slots) {
+        const picks = state.selections[slot.id]?.picks || [];
+        if (!picks.length) {
+          rows.push({ slot: slot.name, name: "—", unitPrice: null, qty: null, sum: null });
+          continue;
+        }
+        for (const p of picks) {
+          rows.push({
+            slot: slot.name,
+            name: p.option.name,
+            unitPrice: p.option.onRequest ? null : p.option.price,
+            qty: p.qty,
+            sum: p.option.onRequest || p.option.price == null ? null : p.option.price * p.qty,
+            onRequest: p.option.onRequest,
+          });
+        }
+      }
+    }
+    return rows;
+  }, [displayTitle, activePlatform?.onRequest, state.basePrice, state.cfg, state.selections]);
+
   const printConfig = async () => {
     if (!state.cfg || state.incomplete || printing) return;
-    const tab = window.open("", "_blank");
-    if (tab) tab.opener = null;
     setPrinting(true);
+    setPrintSnapshot(null);
     try {
-      const pdf = await fetchConfigurationPdf(state.cfg.productId, {
-        selections: selectionPayload(),
-        qty,
-        warranty_term_id: warrantyChoice?.termId,
-        warranty_package_id: warrantyChoice?.packageId,
-      });
-      const url = URL.createObjectURL(pdf);
-      if (tab && !tab.closed) {
-        tab.location.replace(url);
-      } else {
-        const link = document.createElement("a");
-        link.href = url;
-        link.download = "configuration.pdf";
-        link.click();
+      const key = state.cfg.slug || state.cfg.productId;
+      const validation = await validateProductBuild(key, state.buildSelections);
+      if (!validation.ok) {
+        push({ variant: "error", title: "Конфигурация изменилась", description: validation.errors[0] || "Обновите страницу и выберите доступные комплектующие снова" });
+        return;
       }
-      window.setTimeout(() => URL.revokeObjectURL(url), 300_000);
+      const freshWarranty = await fetchWarrantyOptions(key, { selections: state.buildSelections });
+      const selectedWarranty = warrantyChoice
+        ? freshWarranty.find((w) => w.termId === warrantyChoice.termId && w.packageId === warrantyChoice.packageId)
+        : null;
+      if (warrantyChoice && !selectedWarranty) {
+        push({ variant: "error", title: "Гарантия изменилась", description: "Обновите страницу и выберите доступный вариант гарантии снова" });
+        return;
+      }
+    const freshLines = validation.lines as Array<{
+      slot_id?: string;
+      slot_name?: string;
+      name?: string;
+      unit_display?: number | null;
+      line_display?: number | null;
+      qty?: number;
+      on_request?: boolean;
+    }>;
+    const parent = validation.parent;
+    const parentOnRequest = Boolean(parent?.on_request || activePlatform?.onRequest);
+    const rows: PrintRow[] = [{
+      slot: "Платформа",
+      name: parent?.name || displayTitle,
+      unitPrice: parentOnRequest ? null : parent?.price_display ?? state.basePrice,
+      qty: 1,
+      sum: parentOnRequest ? null : parent?.price_display ?? state.basePrice,
+      onRequest: parentOnRequest,
+    }];
+    for (const slot of state.cfg.slots) {
+      const selected = freshLines.filter((line) => line.slot_id === slot.id);
+      if (!selected.length) {
+        rows.push({ slot: slot.name, name: "—", unitPrice: null, qty: null, sum: null });
+        continue;
+      }
+      for (const line of selected) {
+        const onRequest = Boolean(line.on_request);
+        rows.push({
+          slot: line.slot_name || slot.name,
+          name: line.name || "—",
+          unitPrice: onRequest ? null : line.unit_display ?? null,
+          qty: line.qty ?? 1,
+          sum: onRequest ? null : line.line_display ?? null,
+          onRequest,
+        });
+      }
+    }
+      const freshWarrantyExtra = selectedWarranty?.isPaid ? selectedWarranty.price : 0;
+      setPrintSnapshot({ rows, unitTotal: validation.total + freshWarrantyExtra, warrantyName: selectedWarranty?.name, warrantySum: freshWarrantyExtra });
+      document.body.classList.add("printing-config");
+      let cleaned = false;
+      const done = () => {
+        if (cleaned) return;
+        cleaned = true;
+        document.body.classList.remove("printing-config");
+        window.removeEventListener("afterprint", done);
+        window.clearTimeout(fallback);
+        setPrintSnapshot(null);
+        setPrinting(false);
+      };
+      const fallback = window.setTimeout(done, 15000);
+      window.addEventListener("afterprint", done);
+      window.setTimeout(() => window.print(), 80);
     } catch (error) {
-      tab?.close();
-      push({
-        variant: "error",
-        title: "Не удалось открыть PDF конфигурации",
-        description: error instanceof Error ? error.message : "Попробуйте ещё раз",
-      });
+      push({ variant: "error", title: "Не удалось подготовить печать", description: error instanceof Error ? error.message : "Попробуйте ещё раз" });
     } finally {
-      setPrinting(false);
+      if (!document.body.classList.contains("printing-config")) setPrinting(false);
     }
   };
 
@@ -801,7 +895,7 @@ export function ConfigurableProductView({ product }: Props) {
                     <Minus className="size-4" />
                   </Button>
                   <span className="w-10 text-center font-semibold">{qty}</span>
-                  <Button size="icon-sm" variant="ghost" onClick={() => setQty((q) => Math.min(1000, q + 1))}>
+                  <Button size="icon-sm" variant="ghost" onClick={() => setQty((q) => q + 1)}>
                     <Plus className="size-4" />
                   </Button>
                 </div>
@@ -847,10 +941,10 @@ export function ConfigurableProductView({ product }: Props) {
                   variant="outline"
                   size="icon-sm"
                   title="Печать"
-                  onClick={printConfig}
-                  disabled={state.incomplete || printing || warrantyLoading}
+                  onClick={() => void printConfig()}
+                  disabled={state.incomplete || printing}
                 >
-                  {printing ? <Loader2 className="size-4 animate-spin" /> : <Printer className="size-4" />}
+                  <Printer className="size-4" />
                 </Button>
                 <Button
                   variant="outline"
@@ -884,11 +978,11 @@ export function ConfigurableProductView({ product }: Props) {
           <Button
             size="icon"
             variant="outline"
-            onClick={printConfig}
-            disabled={state.incomplete || printing || warrantyLoading}
+            onClick={() => void printConfig()}
+            disabled={state.incomplete || printing}
             aria-label="Печать"
           >
-            {printing ? <Loader2 className="size-4 animate-spin" /> : <Printer className="size-4" />}
+            <Printer className="size-4" />
           </Button>
           <Button size="lg" variant="gradient" onClick={buy} disabled={state.incomplete}>
             В корзину
@@ -896,6 +990,17 @@ export function ConfigurableProductView({ product }: Props) {
         </div>
       </div>
 
+      {createPortal(
+        <ConfigPrintSheet
+          platformName={displayTitle}
+          rows={printSnapshot?.rows || printRows}
+          qty={qty}
+          unitTotal={printSnapshot?.unitTotal ?? (state.total + warrantyExtra)}
+          warrantyName={printSnapshot?.warrantyName ?? warrantyChoice?.name}
+          warrantySum={printSnapshot?.warrantySum ?? warrantyExtra}
+        />,
+        document.body,
+      )}
     </div>
   );
 }
