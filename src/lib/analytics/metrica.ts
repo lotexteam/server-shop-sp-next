@@ -10,6 +10,7 @@
  */
 
 import { API_BASE } from "@/lib/api-base";
+import { fetchPublic } from "@/lib/api";
 
 type MetricaConfig = {
   enabled: boolean;
@@ -77,7 +78,7 @@ export async function initMetrica(): Promise<void> {
   if (initStarted) return;
   initStarted = true;
   try {
-    const res = await fetch(`${API_BASE}/metrica/config`, { headers: { Accept: "application/json" } });
+    const res = await fetchPublic(`${API_BASE}/metrica/config`, { headers: { Accept: "application/json" } });
     config = res.ok ? ((await res.json()) as { data: MetricaConfig })?.data ?? { enabled: false } : { enabled: false };
   } catch {
     config = { enabled: false };

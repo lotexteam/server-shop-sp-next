@@ -82,6 +82,62 @@ export class StorefrontApiError extends Error {
 
 export type ApiItem<T> = { data: T; meta?: Record<string, number> };
 
+const MAX_PUBLIC_GETS = 3;
+const MAX_RATE_LIMIT_RETRIES = 2;
+let activePublicGets = 0;
+const publicGetQueue: Array<() => void> = [];
+let nextPublicGetAt = 0;
+
+function drainPublicGetQueue() {
+  while (activePublicGets < MAX_PUBLIC_GETS && publicGetQueue.length) {
+    activePublicGets += 1;
+    publicGetQueue.shift()!();
+  }
+}
+
+function schedulePublicGet<T>(task: () => Promise<T>): Promise<T> {
+  return new Promise((resolve, reject) => {
+    publicGetQueue.push(() => {
+      void task().then(resolve, reject).finally(() => {
+        activePublicGets -= 1;
+        drainPublicGetQueue();
+      });
+    });
+    drainPublicGetQueue();
+  });
+}
+
+function retryDelay(response: Response, attempt: number): number {
+  const retryAfter = Number(response.headers.get("Retry-After"));
+  if (Number.isFinite(retryAfter) && retryAfter >= 0) return Math.min(retryAfter * 1000, 3000);
+  return 300 * 2 ** attempt;
+}
+
+async function waitForPublicGetSlot() {
+  const now = Date.now();
+  const wait = Math.max(0, nextPublicGetAt - now);
+  nextPublicGetAt = Math.max(now, nextPublicGetAt) + 120;
+  if (wait) await new Promise((resolve) => setTimeout(resolve, wait));
+}
+
+export async function fetchPublic(
+  input: RequestInfo | URL,
+  init: RequestInit = {},
+): Promise<Response> {
+  const isGet = (init.method || "GET").toUpperCase() === "GET";
+  const run = async () => {
+    for (let attempt = 0; ; attempt += 1) {
+      if (isGet) await waitForPublicGetSlot();
+      const response = await fetch(input, init);
+      if (response.status !== 429 || attempt >= MAX_RATE_LIMIT_RETRIES) return response;
+      const delay = retryDelay(response, attempt);
+      nextPublicGetAt = Math.max(nextPublicGetAt, Date.now() + delay);
+      await new Promise((resolve) => setTimeout(resolve, delay));
+    }
+  };
+  return isGet ? schedulePublicGet(run) : run();
+}
+
 async function request<T>(
   path: string,
   init: RequestInit & { json?: unknown; auth?: boolean } = {},
@@ -104,7 +160,7 @@ async function request<T>(
     headers.set("X-Cart-Token", cartToken);
   }
 
-  const res = await fetch(`${API_BASE}${path.startsWith("/") ? path : `/${path}`}`, {
+  const res = await fetchPublic(`${API_BASE}${path.startsWith("/") ? path : `/${path}`}`, {
     ...init,
     headers,
     body: init.json !== undefined ? JSON.stringify(init.json) : init.body,

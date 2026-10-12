@@ -14,6 +14,7 @@
 import { initMetrica } from "@/lib/analytics/metrica";
 
 import { API_BASE } from "@/lib/api-base";
+import { fetchPublic } from "@/lib/api";
 
 const STORAGE_KEY = "server-price-consent-v1";
 const VISITOR_KEY = "server-price-visitor-v1";
@@ -231,7 +232,7 @@ export async function logConsent(
 
 async function fetchConfig(): Promise<ConsentConfig> {
   try {
-    const res = await fetch(`${API_BASE}/consent/config`, {
+    const res = await fetchPublic(`${API_BASE}/consent/config`, {
       headers: { Accept: "application/json" },
     });
     return res.ok

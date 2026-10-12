@@ -27,7 +27,7 @@ const FALLBACK_FOOTER_COLS: MenuNavItem[] = [
     children: [
       { id: "fb-about", label: "О компании", href: "/blog/about" },
       { id: "fb-contacts", label: "Контакты", href: "/blog/contacts" },
-      { id: "fb-services", label: "Услуги", href: "/blog/services" },
+      { id: "fb-catalog", label: "Каталог", href: "/catalog" },
       { id: "fb-monitoring", label: "Мониторинг", href: "/blog/monitoring" },
     ],
   },
