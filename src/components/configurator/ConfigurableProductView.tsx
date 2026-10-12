@@ -6,7 +6,6 @@
  * Платформы = admin-linked merge (API platforms), UI как у атрибутов-слотов.
  */
 import { useEffect, useMemo, useState } from "react";
-import { createPortal } from "react-dom";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
@@ -37,7 +36,7 @@ import { Table, TableBody, TableCell, TableRow } from "@/components/ui/table";
 import { formatPrice, cn } from "@/lib/utils";
 import { categoryHref } from "@/lib/api";
 import { VatHint } from "@/components/common/Price";
-import { ConfigPrintSheet } from "@/components/configurator/ConfigPrintSheet";
+import { fetchConfigurationPdf } from "@/lib/configuration-pdf";
 import { useShop } from "@/store/shop";
 import { useAuth } from "@/store/auth";
 import { useToast } from "@/components/ui/toast";
@@ -153,6 +152,7 @@ export function ConfigurableProductView({ product }: Props) {
   const [activeImg, setActiveImg] = useState(0);
   const [saving, setSaving] = useState(false);
   const [sharing, setSharing] = useState(false);
+  const [printing, setPrinting] = useState(false);
   const { push } = useToast();
 
   /** Platforms from admin API only (not «all servers in category»). */
@@ -246,54 +246,38 @@ export function ConfigurableProductView({ product }: Props) {
     null;
   const warrantyExtra = warrantyChoice?.isPaid ? warrantyChoice.price : 0;
 
-  const printRows = useMemo(() => {
-    const rows: Array<{
-      slot: string;
-      name: string;
-      unitPrice: number | null;
-      qty: number | null;
-      sum: number | null;
-      onRequest?: boolean;
-    }> = [
-      {
-        slot: "Платформа",
-        name: displayTitle,
-        unitPrice: activePlatform?.onRequest ? null : state.basePrice,
-        qty: 1,
-        sum: activePlatform?.onRequest ? null : state.basePrice,
-        onRequest: activePlatform?.onRequest,
-      },
-    ];
-    if (state.cfg) {
-      for (const slot of state.cfg.slots) {
-        const picks = state.selections[slot.id]?.picks || [];
-        if (!picks.length) {
-          rows.push({ slot: slot.name, name: "—", unitPrice: null, qty: null, sum: null });
-          continue;
-        }
-        for (const p of picks) {
-          rows.push({
-            slot: slot.name,
-            name: p.option.name,
-            unitPrice: p.option.onRequest ? null : p.option.price,
-            qty: p.qty,
-            sum: p.option.onRequest || p.option.price == null ? null : p.option.price * p.qty,
-            onRequest: p.option.onRequest,
-          });
-        }
+  const printConfig = async () => {
+    if (!state.cfg || state.incomplete || printing) return;
+    const tab = window.open("", "_blank");
+    if (tab) tab.opener = null;
+    setPrinting(true);
+    try {
+      const pdf = await fetchConfigurationPdf(state.cfg.productId, {
+        selections: selectionPayload(),
+        qty,
+        warranty_term_id: warrantyChoice?.termId,
+        warranty_package_id: warrantyChoice?.packageId,
+      });
+      const url = URL.createObjectURL(pdf);
+      if (tab && !tab.closed) {
+        tab.location.replace(url);
+      } else {
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = "configuration.pdf";
+        link.click();
       }
+      window.setTimeout(() => URL.revokeObjectURL(url), 300_000);
+    } catch (error) {
+      tab?.close();
+      push({
+        variant: "error",
+        title: "Не удалось открыть PDF конфигурации",
+        description: error instanceof Error ? error.message : "Попробуйте ещё раз",
+      });
+    } finally {
+      setPrinting(false);
     }
-    return rows;
-  }, [displayTitle, activePlatform?.onRequest, state.basePrice, state.cfg, state.selections]);
-
-  const printConfig = () => {
-    document.body.classList.add("printing-config");
-    const done = () => {
-      document.body.classList.remove("printing-config");
-      window.removeEventListener("afterprint", done);
-    };
-    window.addEventListener("afterprint", done);
-    window.setTimeout(() => window.print(), 50);
   };
 
   useEffect(() => {
@@ -817,7 +801,7 @@ export function ConfigurableProductView({ product }: Props) {
                     <Minus className="size-4" />
                   </Button>
                   <span className="w-10 text-center font-semibold">{qty}</span>
-                  <Button size="icon-sm" variant="ghost" onClick={() => setQty((q) => q + 1)}>
+                  <Button size="icon-sm" variant="ghost" onClick={() => setQty((q) => Math.min(1000, q + 1))}>
                     <Plus className="size-4" />
                   </Button>
                 </div>
@@ -864,9 +848,9 @@ export function ConfigurableProductView({ product }: Props) {
                   size="icon-sm"
                   title="Печать"
                   onClick={printConfig}
-                  disabled={state.incomplete}
+                  disabled={state.incomplete || printing || warrantyLoading}
                 >
-                  <Printer className="size-4" />
+                  {printing ? <Loader2 className="size-4 animate-spin" /> : <Printer className="size-4" />}
                 </Button>
                 <Button
                   variant="outline"
@@ -901,10 +885,10 @@ export function ConfigurableProductView({ product }: Props) {
             size="icon"
             variant="outline"
             onClick={printConfig}
-            disabled={state.incomplete}
+            disabled={state.incomplete || printing || warrantyLoading}
             aria-label="Печать"
           >
-            <Printer className="size-4" />
+            {printing ? <Loader2 className="size-4 animate-spin" /> : <Printer className="size-4" />}
           </Button>
           <Button size="lg" variant="gradient" onClick={buy} disabled={state.incomplete}>
             В корзину
@@ -912,17 +896,6 @@ export function ConfigurableProductView({ product }: Props) {
         </div>
       </div>
 
-      {createPortal(
-        <ConfigPrintSheet
-          platformName={displayTitle}
-          rows={printRows}
-          qty={qty}
-          unitTotal={state.total + warrantyExtra}
-          warrantyName={warrantyChoice?.name}
-          warrantySum={warrantyExtra}
-        />,
-        document.body,
-      )}
     </div>
   );
 }

@@ -164,29 +164,6 @@
   :focus-visible { @apply outline-none ring-2 ring-ring ring-offset-2 ring-offset-background; }
 }
 
-.config-print-sheet {
-  display: none;
-  /* Повсеместно доступный шрифт для печатных документов */
-  font-family: Arial, "Helvetica Neue", Helvetica, "Liberation Sans", sans-serif;
-}
-
-@media print {
-  html { scroll-behavior: auto !important; }
-  /* Лист рендерится порталом в body: прячем приложение целиком,
-     чтобы скрытый контент страницы не создавал пустые листы */
-  body.printing-config #root { display: none !important; }
-  body.printing-config .config-print-sheet {
-    display: block !important;
-    color: #1F2430;
-    background: #fff;
-    -webkit-print-color-adjust: exact;
-    print-color-adjust: exact;
-  }
-  @page {
-    margin: 12mm;
-  }
-}
-
 @layer components {
   .container-page { @apply mx-auto w-full max-w-[1440px] px-4 sm:px-6 lg:px-8; }
   /* Brand gradient text — works on light surfaces; on dark hero use lighter gradient stops */
