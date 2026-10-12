@@ -91,7 +91,7 @@ let nextPublicGetAt = 0;
 function publicCacheKey(input: RequestInfo | URL): string | null {
   const url = String(input);
   if (!/^https?:\/\//i.test(url)) return null;
-  if (!/(\/settings\/|\/menus\/|\/categories(?:\?|$)|\/consent\/config|\/metrica\/config|\/products\/)/.test(url)) return null;
+  if (!/(\/settings\/|\/menus\/|\/categories(?:\?|$)|\/consent\/config|\/metrica\/config)/.test(url)) return null;
   return `storefront-public:${url}`;
 }
 
