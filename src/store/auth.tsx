@@ -21,6 +21,7 @@ import {
   normalizePhone,
   registerCustomer,
   resendRegistrationCode,
+  resendVerificationEmail,
   setAuthToken,
   updateCustomerProfile,
   verifyRegistrationEmail,
@@ -37,6 +38,7 @@ export interface UserProfile {
   lastName: string;
   email: string;
   phone: string;
+  emailVerified: boolean;
 }
 
 /** Saved delivery address (account book): всё одним адресом, без квартиры/офиса */
@@ -91,6 +93,8 @@ interface AuthState {
   verifyEmailCode: (code: string) => Promise<void>;
   /** Отправить код повторно. */
   resendEmailCode: () => Promise<void>;
+  /** Отправить подтверждение email авторизованному пользователю. */
+  resendVerificationEmail: () => Promise<void>;
   /** Сбросить ожидание подтверждения (пользователь отменил). */
   clearPendingEmail: () => void;
   logout: () => void;
@@ -132,6 +136,7 @@ function mapApiUser(u: ApiAuthUser): UserProfile {
     lastName: last,
     email: u.email,
     phone: u.phone || "",
+    emailVerified: Boolean(u.email_verified),
   };
 }
 
@@ -402,17 +407,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       );
     }
     const res = await registrationRequest.promise;
-    // Аккаунт создан, но не активирован: ждём код из письма.
-    setPendingEmail(res.email);
+    setAuthToken(res.token);
+    setApiTokenState(res.token);
+    setAuth(true);
+    setUser(mapApiUser(res.user));
+    setPendingEmail(null);
     try {
-      sessionStorage.setItem(PENDING_REGISTRATION_KEY, res.email);
+      sessionStorage.removeItem(PENDING_REGISTRATION_KEY);
     } catch {
       /* ignore unavailable session storage */
     }
-    setAuthToken(null);
-    setApiTokenState(null);
-    setAuth(false);
-    setUser(null);
+    await reloadBooks().catch(() => {
+      setAddresses([]);
+      setLegalEntities([]);
+    });
+    void reloadBonuses();
   };
 
   const verifyEmailCode = async (code: string) => {
@@ -436,6 +445,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const resendEmailCode = async () => {
     if (!pendingEmail) throw new Error("Нет регистрации, ожидающей подтверждения");
     await resendRegistrationCode(pendingEmail);
+  };
+
+  const resendVerification = async () => {
+    await resendVerificationEmail();
   };
 
   const clearPendingEmail = () => {
@@ -541,6 +554,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         pendingEmail,
         verifyEmailCode,
         resendEmailCode,
+        resendVerificationEmail: resendVerification,
         clearPendingEmail,
         logout,
         updateProfile,

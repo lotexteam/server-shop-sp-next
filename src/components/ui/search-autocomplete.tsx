@@ -19,7 +19,7 @@ type Props = {
   autoFocus?: boolean;
 };
 
-const DEBOUNCE_MS = 120;
+const DEBOUNCE_MS = 220;
 const MIN_CHARS = 1;
 
 export function SearchAutocomplete({

@@ -2292,6 +2292,7 @@ export type ApiAuthUser = {
   phone?: string | null;
   type?: string;
   bonus_balance?: number;
+  email_verified?: boolean;
   profile?: {
     first_name?: string | null;
     last_name?: string | null;
@@ -2311,7 +2312,7 @@ export async function loginCustomer(
   return res.data;
 }
 
-/** Регистрация: аккаунт создаётся неподтверждённым, код уходит на email. */
+/** Регистрация: аккаунт доступен сразу, email можно подтвердить позже. */
 export async function registerCustomer(body: {
   name: string;
   email: string;
@@ -2319,8 +2320,8 @@ export async function registerCustomer(body: {
   password_confirmation: string;
   phone?: string;
   type?: "individual" | "legal";
-}): Promise<{ needs_verification: true; email: string }> {
-  const res = await request<ApiItem<{ needs_verification: true; email: string }>>(
+}): Promise<{ token: string; user: ApiAuthUser; email: string; needs_verification: false }> {
+  const res = await request<ApiItem<{ token: string; user: ApiAuthUser; email: string; needs_verification: false }>>(
     "/auth/register",
     {
       method: "POST",
@@ -2354,6 +2355,10 @@ export async function resendRegistrationCode(email: string): Promise<void> {
     json: { email },
     auth: false,
   });
+}
+
+export async function resendVerificationEmail(): Promise<void> {
+  await request("/auth/email/resend-verification", { method: "POST" });
 }
 
 export async function logoutCustomer(): Promise<void> {
