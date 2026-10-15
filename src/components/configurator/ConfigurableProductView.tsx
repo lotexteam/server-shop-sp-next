@@ -85,15 +85,8 @@ async function renderPrintWindow(printWindow: Window, title: string) {
   const base = printDocument.createElement("base");
   base.href = document.baseURI;
   printDocument.head.prepend(base);
-  const assets: Promise<void>[] = [];
   document.querySelectorAll('link[rel="stylesheet"], style').forEach((node) => {
     const clone = node.cloneNode(true);
-    if (clone.nodeName === "LINK") {
-      assets.push(new Promise<void>((resolve, reject) => {
-        clone.addEventListener("load", () => resolve(), { once: true });
-        clone.addEventListener("error", () => reject(new Error("Не удалось загрузить стили печати")), { once: true });
-      }));
-    }
     printDocument.head.appendChild(clone);
   });
   const style = printDocument.createElement("style");
@@ -154,28 +147,9 @@ async function renderPrintWindow(printWindow: Window, title: string) {
   printDocument.body.appendChild(actions);
   // Clone only the React-rendered quote, without storefront markup or scripts.
   printDocument.body.appendChild(sheet.cloneNode(true));
-  printDocument.querySelectorAll("img").forEach((img) => {
-    if (!img.complete) {
-      assets.push(new Promise<void>((resolve) => {
-        img.addEventListener("load", () => resolve(), { once: true });
-        img.addEventListener("error", () => resolve(), { once: true });
-      }));
-    }
-  });
-  let timeout: ReturnType<typeof setTimeout> | undefined;
-  try {
-    await Promise.race([
-      Promise.all(assets).then(() => printDocument.fonts.ready),
-      new Promise<never>((_, reject) => {
-        timeout = setTimeout(() => reject(new Error("Не удалось загрузить макет печати. Повторите попытку")), 15000);
-      }),
-    ]);
-    if (!printWindow.closed) {
-      button.disabled = false;
-      printWindow.focus();
-    }
-  } finally {
-    clearTimeout(timeout);
+  if (!printWindow.closed) {
+    button.disabled = false;
+    printWindow.focus();
   }
 }
 
