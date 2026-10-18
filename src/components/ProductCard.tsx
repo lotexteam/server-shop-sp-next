@@ -103,8 +103,12 @@ export function ProductCard({
           {product.title}
         </Link>
 
+        <p className="-mt-2 text-caption text-muted-foreground">
+          Артикул: <span className="font-medium text-foreground/80">{product.sku || "—"}</span>
+        </p>
+
         <ul className="space-y-1 text-caption text-muted-foreground">
-          {product.specs.slice(0, 3).map((s) => (
+          {product.specs.filter((s) => !/^(артикул|sku|описание|description)$/i.test(s.label.trim())).slice(0, 3).map((s) => (
             <li key={s.label} className="flex justify-between gap-2">
               <span>{s.label}</span>
               <span className="truncate font-medium text-foreground/80">{s.value}</span>

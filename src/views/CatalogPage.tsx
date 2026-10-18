@@ -241,7 +241,7 @@ export function CatalogPage({
           is_new: isNew,
           attr: filters.attributes,
           attr_ranges: filters.attributeRanges,
-          sort: sort === "popular" ? undefined : sort,
+          sort: urlQuery ? "search" : sort === "popular" ? undefined : sort,
         });
         if (cancelled) return;
         setPageItems(res.items.filter((p) => !p.slug.startsWith("cfg-opt-")));
@@ -665,11 +665,14 @@ export function CatalogPage({
                           >
                             {p.title}
                           </Link>
+                          <p className="mt-1 text-caption text-muted-foreground">
+                            Артикул: <span className="font-medium text-foreground/80">{p.sku || "—"}</span>
+                          </p>
                         </div>
                         {discount > 0 && <Badge variant="accent">-{discount}%</Badge>}
                       </div>
                       <ul className="mt-2 grid grid-cols-2 gap-x-6 gap-y-1 text-caption text-muted-foreground sm:grid-cols-3">
-                        {p.specs.map((s) => (
+                        {p.specs.filter((s) => !/^(артикул|sku|описание|description)$/i.test(s.label.trim())).map((s) => (
                           <li key={s.label} className="flex justify-between gap-2">
                             <span>{s.label}</span>
                             <span className="font-medium text-foreground/80">{s.value}</span>

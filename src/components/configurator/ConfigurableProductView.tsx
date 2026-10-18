@@ -773,6 +773,7 @@ export function ConfigurableProductView({ product }: Props) {
             <TabsList className="relative z-10 mb-3 flex h-auto w-full max-w-full justify-start">
               <TabsTrigger value="configurator">Конфигуратор</TabsTrigger>
               <TabsTrigger value="specs">Характеристики</TabsTrigger>
+              {product.description?.trim() && <TabsTrigger value="description">Описание</TabsTrigger>}
             </TabsList>
 
             {/* Слоты: платформа + компоненты (товары) */}
@@ -835,6 +836,13 @@ export function ConfigurableProductView({ product }: Props) {
                 </Table>
               </div>
             </TabsContent>
+            {product.description?.trim() && (
+              <TabsContent value="description" className="mt-0">
+                <div className="surface-card whitespace-pre-line p-4 text-body-sm leading-relaxed sm:p-5">
+                  {product.description}
+                </div>
+              </TabsContent>
+            )}
           </Tabs>
         </div>
 

@@ -392,7 +392,6 @@ export function mapApiProduct(p: ApiProduct): Product {
         })
         .filter((s) => s.value);
       if (fromAttrs.length) return fromAttrs;
-      if (p.short_description) return [{ label: "Описание", value: p.short_description }];
       return p.sku ? [{ label: "Артикул", value: p.sku }] : [];
     })(),
     description: p.description ?? p.short_description ?? undefined,
@@ -487,7 +486,7 @@ export async function fetchProducts(params?: {
   on_sale?: boolean;
   attr?: Record<string, string[]>;
   attr_ranges?: Record<string, { min?: number; max?: number }>;
-  sort?: "price-asc" | "price-desc";
+  sort?: "price-asc" | "price-desc" | "search";
 }): Promise<{ items: Product[]; total: number; page: number; lastPage: number }> {
   const qs = new URLSearchParams();
   qs.set("per_page", String(params?.per_page ?? 250));

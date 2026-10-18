@@ -86,6 +86,7 @@ export function searchCatalogIn(
   categories: Category[],
   limits = { products: 6, categories: 4 },
   guaranteed?: ReadonlySet<string>,
+  preserveProductOrder = false,
 ): SearchHit[] {
   const q = query.trim();
   if (q.length < 1) return [];
@@ -112,7 +113,8 @@ export function searchCatalogIn(
     if (score === 0 && guaranteed?.has(product.id)) score = 1;
     if (score > 0) prodHits.push({ kind: "product", product, score });
   }
-  prodHits.sort((a, b) => b.score - a.score);
+  // The server has already ranked these hits (including category search_rank).
+  if (!preserveProductOrder) prodHits.sort((a, b) => b.score - a.score);
 
   return [
     ...catHits.slice(0, limits.categories),
@@ -132,15 +134,16 @@ export async function searchCatalog(
       ? (async () => {
           try {
             // Основной путь: серверный поиск на бэке (GET /search)
-            return { items: await searchProductsApi(q) };
+            return { items: await searchProductsApi(q), ranked: true };
           } catch {
             // Фолбэк: SQL-поиск по токенам
-            return await fetchProducts({ q, per_page: 50 }).catch(
-              () => ({ items: [] as Product[] }),
+            const fallback = await fetchProducts({ q, per_page: 50 }).catch(
+              () => ({ items: [] as Product[], total: 0, page: 1, lastPage: 1 }),
             );
+            return { ...fallback, ranked: false };
           }
         })()
-      : Promise.resolve({ items: [] as Product[] }),
+      : Promise.resolve({ items: [] as Product[], ranked: false }),
   ]);
   return searchCatalogIn(
     query,
@@ -148,6 +151,7 @@ export async function searchCatalog(
     categories,
     limits,
     new Set(api.items.map((p) => p.id)),
+    api.ranked,
   );
 }
 
