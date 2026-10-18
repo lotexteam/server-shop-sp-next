@@ -9,6 +9,10 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
+import ReactMarkdown from "react-markdown";
+import rehypeRaw from "rehype-raw";
+import rehypeSanitize from "rehype-sanitize";
+import remarkGfm from "remark-gfm";
 import {
   Heart,
   Minus,
@@ -838,8 +842,22 @@ export function ConfigurableProductView({ product }: Props) {
             </TabsContent>
             {product.description?.trim() && (
               <TabsContent value="description" className="mt-0">
-                <div className="surface-card whitespace-pre-line p-4 text-body-sm leading-relaxed sm:p-5">
-                  {product.description}
+                <div className="surface-card p-4 text-body-sm leading-relaxed sm:p-5">
+                  <ReactMarkdown
+                    remarkPlugins={[remarkGfm]}
+                    rehypePlugins={[rehypeRaw, rehypeSanitize]}
+                    components={{
+                      h2: ({ children }) => <h2 className="mt-6 text-h5 font-semibold text-foreground first:mt-0">{children}</h2>,
+                      h3: ({ children }) => <h3 className="mt-5 text-body font-semibold text-foreground first:mt-0">{children}</h3>,
+                      p: ({ children }) => <p className="mt-3 first:mt-0">{children}</p>,
+                      ul: ({ children }) => <ul className="mt-3 list-disc space-y-1 pl-5 first:mt-0">{children}</ul>,
+                      ol: ({ children }) => <ol className="mt-3 list-decimal space-y-1 pl-5 first:mt-0">{children}</ol>,
+                      strong: ({ children }) => <strong className="font-semibold text-foreground">{children}</strong>,
+                      a: ({ children, href }) => <a href={href} className="text-primary underline underline-offset-2">{children}</a>,
+                    }}
+                  >
+                    {product.description}
+                  </ReactMarkdown>
                 </div>
               </TabsContent>
             )}
