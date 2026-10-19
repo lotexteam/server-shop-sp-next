@@ -140,6 +140,7 @@ export function Header() {
   // Категория может быть в пути (ЧПУ /catalog/{slug}) или в легаси query.
   const pathCategorySlug = pathname.match(/^\/catalog\/([^/]+)/)?.[1] ?? "";
   const activeCategorySlug = pathCategorySlug || searchParams.get("category") || "";
+  const searchCategorySlug = searchParams.get("scope") === "global" ? "" : activeCategorySlug;
 
   // Пункт меню ведёт в категорию каталога? (ЧПУ /catalog/{slug} или легаси
   // query/categorySlug) — в дереве «Каталог» он лишний.
@@ -397,6 +398,7 @@ export function Header() {
               onChange={setQ}
               onClear={() => setQ("")}
               onNavigate={closeMega}
+              categorySlug={searchCategorySlug}
             />
           </div>
         </div>
@@ -444,6 +446,7 @@ export function Header() {
           onChange={setQ}
           onClear={() => setQ("")}
           onNavigate={closeMega}
+          categorySlug={searchCategorySlug}
         />
       </div>
 

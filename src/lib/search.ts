@@ -95,7 +95,7 @@ export function searchCatalogIn(
 
   const categoryBySlug = Object.fromEntries(categories.map((c) => [c.slug, c]));
 
-  const catHits: SearchHit[] = [];
+  const catHits: Array<Extract<SearchHit, { kind: "category" }>> = [];
   for (const category of categories) {
     const score = scoreFields(
       [category.title, category.description ?? "", category.slug],
@@ -103,7 +103,12 @@ export function searchCatalogIn(
     );
     if (score > 0) catHits.push({ kind: "category", category, score });
   }
-  catHits.sort((a, b) => b.score - a.score);
+  catHits.sort((a, b) =>
+    (a.category.searchRank ?? Number.MAX_SAFE_INTEGER) -
+      (b.category.searchRank ?? Number.MAX_SAFE_INTEGER) ||
+    b.score - a.score ||
+    a.category.title.localeCompare(b.category.title),
+  );
 
   const prodHits: SearchHit[] = [];
   for (const product of products) {

@@ -17,6 +17,7 @@ type Props = {
   /** Called after navigation from a suggestion */
   onNavigate?: () => void;
   autoFocus?: boolean;
+  categorySlug?: string;
 };
 
 const DEBOUNCE_MS = 220;
@@ -30,6 +31,7 @@ export function SearchAutocomplete({
   className,
   onNavigate,
   autoFocus,
+  categorySlug,
 }: Props) {
   const router = useRouter();
   const listId = useId();
@@ -88,6 +90,11 @@ export function SearchAutocomplete({
 
   const showPanel = open && value.trim().length >= MIN_CHARS;
 
+  const catalogSearchPath = useCallback((query: string) => {
+    const base = categorySlug ? `/catalog/${encodeURIComponent(categorySlug)}` : "/catalog";
+    return `${base}?q=${encodeURIComponent(query)}`;
+  }, [categorySlug]);
+
   useEffect(() => {
     setActiveIndex(-1);
   }, [debounced]);
@@ -116,9 +123,9 @@ export function SearchAutocomplete({
       if (!item) return;
       if (item.type === "product") go(`/product/${item.hit.product.slug}`);
       else if (item.type === "category") go(categoryHref(item.hit.category.slug));
-      else go(`/catalog?q=${encodeURIComponent(item.query)}`);
+      else go(catalogSearchPath(item.query));
     },
-    [flatItems, go]
+    [flatItems, go, catalogSearchPath]
   );
 
   const submit = (e?: React.FormEvent) => {
@@ -128,7 +135,7 @@ export function SearchAutocomplete({
       selectIndex(activeIndex);
       return;
     }
-    if (q) go(`/catalog?q=${encodeURIComponent(q)}`);
+    if (q) go(catalogSearchPath(q));
     else go("/catalog");
   };
 
@@ -222,7 +229,7 @@ export function SearchAutocomplete({
               <button
                 type="button"
                 className="mt-3 text-body-sm font-semibold text-primary hover:underline"
-                onClick={() => go(`/catalog?q=${encodeURIComponent(value.trim())}`)}
+                onClick={() => go(catalogSearchPath(value.trim()))}
               >
                 Искать «{value.trim()}» в каталоге
               </button>
@@ -355,7 +362,7 @@ export function SearchAutocomplete({
                     role="option"
                     aria-selected={active}
                     onMouseEnter={() => setActiveIndex(idx)}
-                    onClick={() => go(`/catalog?q=${encodeURIComponent(value.trim())}`)}
+                    onClick={() => go(catalogSearchPath(value.trim()))}
                     className={cn(
                       "flex w-full items-center justify-between gap-2 border-t border-border px-3 py-3 text-left text-body-sm font-semibold text-primary transition-colors",
                       active ? "bg-primary/10" : "hover:bg-secondary/70"
