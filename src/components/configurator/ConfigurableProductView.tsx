@@ -73,6 +73,26 @@ import {
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
+function decodeBuildParam(value: string | null): ConfiguratorBuild | null {
+  if (!value || value.length > 12000) return null;
+  try {
+    const base64 = value.replace(/-/g, "+").replace(/_/g, "/");
+    const padded = base64 + "=".repeat((4 - (base64.length % 4)) % 4);
+    const bytes = Uint8Array.from(atob(padded), (char) => char.charCodeAt(0));
+    const parsed: unknown = JSON.parse(new TextDecoder().decode(bytes));
+    if (!Array.isArray(parsed)) return null;
+    const selections = parsed.filter((row): row is ConfiguratorBuild["selections"][number] =>
+      Boolean(row && typeof row === "object") &&
+      typeof row.slot_id === "string" &&
+      typeof row.product_id === "string" &&
+      Number.isFinite(row.qty) && row.qty > 0,
+    );
+    return selections.length ? { selections } : null;
+  } catch {
+    return null;
+  }
+}
+
 type Props = {
   product: Product;
 };
@@ -163,9 +183,11 @@ export function ConfigurableProductView({ product }: Props) {
   const { addToCart, toggleFav, favorites, saveConfig, savedConfigs, cart } = useShop();
   const { isAuthenticated } = useAuth();
   const savedConfigId = searchParams.get("config");
+  const buildParam = searchParams.get("build");
   const shareToken = searchParams.get("share");
   const editSlug = searchParams.get("edit");
   const [editBuild, setEditBuild] = useState<ConfiguratorBuild | null>(null);
+  const urlBuild = useMemo(() => decodeBuildParam(buildParam), [buildParam]);
   const [editReady, setEditReady] = useState(!editSlug);
   const [sharedBuild, setSharedBuild] = useState<ConfiguratorBuild | null>(() => {
     const stashed = takeSharedBuildForProduct(product.id) ||
@@ -216,6 +238,7 @@ export function ConfigurableProductView({ product }: Props) {
   }, [shareToken, product.id, product.slug]);
 
   const initialBuild = useMemo((): ConfiguratorBuild | null => {
+    if (urlBuild?.selections.length) return urlBuild;
     if (editBuild?.selections?.length) return editBuild;
     if (sharedBuild?.selections?.length) return sharedBuild;
     if (!savedConfigId) return null;
@@ -229,7 +252,7 @@ export function ConfigurableProductView({ product }: Props) {
       return null;
     }
     return found.build;
-  }, [editBuild, sharedBuild, savedConfigId, savedConfigs, cart, product.id, product.slug]);
+  }, [urlBuild, editBuild, sharedBuild, savedConfigId, savedConfigs, cart, product.id, product.slug]);
 
   const state = useProductConfigurator(product.slug, initialBuild);
   const [warrantyTermId, setWarrantyTermId] = useState<string | null>(null);
