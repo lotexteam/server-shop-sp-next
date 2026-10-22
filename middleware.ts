@@ -2,14 +2,19 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 type SeoDocumentResponse = {
-  data?: { kind?: string } | null;
+  data?: {
+    kind?: string;
+    http_status?: number;
+    redirect_to?: string | null;
+  } | null;
 };
 
 const SEO_PATH = /^\/(product|catalog|blog)\/[^/]+(?:\/[^/]*)?$/;
+const LEGACY_PRODUCTS_PATH = /^\/(?:[^/]+\/)+products(?:\/[^/]+)?\/?$/;
 
-async function isMissingPage(request: NextRequest): Promise<boolean> {
+async function fetchSeoDocument(request: NextRequest): Promise<SeoDocumentResponse["data"]> {
   const apiBase = (process.env.API_BASE_URL || process.env.NEXT_PUBLIC_API_BASE_URL || "").replace(/\/$/, "");
-  if (!apiBase) return false;
+  if (!apiBase) return null;
 
   const path = request.nextUrl.pathname + request.nextUrl.search;
   const url = `${apiBase}/seo/document?path=${encodeURIComponent(path)}`;
@@ -25,11 +30,11 @@ async function isMissingPage(request: NextRequest): Promise<boolean> {
       cache: "no-store",
       signal: controller.signal,
     });
-    if (!response.ok) return false;
+    if (!response.ok) return null;
     const payload = (await response.json()) as SeoDocumentResponse;
-    return payload.data?.kind === "not_found";
+    return payload.data ?? null;
   } catch {
-    return false;
+    return null;
   } finally {
     clearTimeout(timeout);
   }
@@ -37,8 +42,27 @@ async function isMissingPage(request: NextRequest): Promise<boolean> {
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
+  const isSeoPath = SEO_PATH.test(pathname);
+  const isLegacyProductsPath = LEGACY_PRODUCTS_PATH.test(pathname);
+  const isLegacyCategoryQuery = pathname === "/catalog" && request.nextUrl.searchParams.has("category");
+  const document = isSeoPath || isLegacyProductsPath || isLegacyCategoryQuery
+    ? await fetchSeoDocument(request)
+    : null;
 
-  if (SEO_PATH.test(pathname) && await isMissingPage(request)) {
+  if (document?.redirect_to) {
+    const status = Number(document.http_status);
+    if ([301, 302, 303, 307, 308].includes(status)) {
+      try {
+        const parsed = new URL(document.redirect_to, request.nextUrl.origin);
+        const target = new URL(`${parsed.pathname}${parsed.search}${parsed.hash}`, request.nextUrl.origin);
+        return NextResponse.redirect(target, status);
+      } catch {
+        // Invalid redirect targets fall through to the normal page handling.
+      }
+    }
+  }
+
+  if (isSeoPath && document?.kind === "not_found") {
     return new NextResponse(
       `<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex,follow"><title>Страница не найдена — STORE-SERVER</title><style>
         :root{color-scheme:light;--brand:#0d5c63;--ink:#17343a;--muted:#6c8185;--line:#dce8e9;--surface:#fff;--background:#f4f8f8}
@@ -75,5 +99,10 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/", "/product/:path*", "/catalog/:path*", "/blog/:path*"],
+  matcher: [
+    "/product/:path*",
+    "/catalog/:path*",
+    "/blog/:path*",
+    "/:legacyPath*/products/:productPath*",
+  ],
 };
