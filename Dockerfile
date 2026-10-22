@@ -12,6 +12,7 @@ ARG NEXT_PUBLIC_API_BASE_URL=http://127.0.0.1:8080/api/v1
 ARG NEXT_PUBLIC_MEDIA_BASE_URL=
 ARG API_BASE_URL=http://127.0.0.1:8080/api/v1
 ARG APP_URL=http://localhost:3000
+ARG GIT_COMMIT=unknown
 # Single-domain деплой (один хост с admin-ui): префикс статики витрины,
 # чтобы /_next/* не конфликтовал с админкой (маршрут в Caddyfile).
 # Пусто = обычный /_next (multi-domain/standalone).
@@ -33,9 +34,11 @@ RUN npm run build
 FROM node:20-alpine
 WORKDIR /app
 
+ARG GIT_COMMIT=unknown
 ENV NODE_ENV=production
 ENV PORT=3000
 ENV HOSTNAME=0.0.0.0
+ENV GIT_COMMIT=$GIT_COMMIT
 
 COPY --from=build /app/.next/standalone ./
 COPY --from=build /app/.next/static ./.next/static

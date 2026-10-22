@@ -18,6 +18,7 @@ services:
         APP_URL: ${APP_URL:-http://localhost}
         # Single-domain: /shop-next (статика витрины вне /_next/* админки).
         NEXT_ASSET_PREFIX: ${NEXT_ASSET_PREFIX:-}
+        GIT_COMMIT: ${GIT_COMMIT:-unknown}
     # PORT=80 — Caddy проксирует на сетевой алиас :80 (как на nginx старой
     # витрины), Caddyfile менять не нужно. standalone server.js слушает PORT.
     environment:
