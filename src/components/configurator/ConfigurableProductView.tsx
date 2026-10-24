@@ -47,6 +47,7 @@ import { useAuth } from "@/store/auth";
 import { useToast } from "@/components/ui/toast";
 import { WarrantyPicker, toCartWarranty } from "@/components/product/WarrantyPicker";
 import { useWarrantyOptions } from "@/hooks/useWarrantyOptions";
+import { openCartDrawer } from "@/lib/cart-events";
 import {
   isSlotMultiSelect,
   useProductConfigurator,
@@ -473,6 +474,7 @@ export function ConfigurableProductView({ product }: Props) {
     push({
       variant: "success",
       title: "Конфигурация в корзине",
+      action: { label: "Перейти в корзину", onClick: openCartDrawer },
       description: `${displayTitle} x ${qty} · ${formatPrice(state.total * qty + extra)}`,
     });
   };

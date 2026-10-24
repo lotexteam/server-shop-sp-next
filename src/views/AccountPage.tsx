@@ -39,6 +39,7 @@ import { useShop, MAX_COMPARE } from "@/store/shop";
 import { useAuth } from "@/store/auth";
 import { useSiteSettings } from "@/hooks/useSiteSettings";
 import { useToast } from "@/components/ui/toast";
+import { openCartDrawer } from "@/lib/cart-events";
 import { formatBonus } from "@/lib/bonuses";
 import { resolveProductsByIds } from "@/hooks/useCatalogProducts";
 import {
@@ -1216,7 +1217,7 @@ export function AccountPage() {
                   }}
                   onAddToCart={(p) => {
                     addToCart(p);
-                    push({ variant: "success", title: "Добавлено в корзину", description: p.title, action: { label: "Перейти к оформлению", onClick: () => router.push("/checkout") } });
+                    push({ variant: "success", title: "Добавлено в корзину", description: p.title, action: { label: "Перейти в корзину", onClick: openCartDrawer } });
                   }}
                 />
               </div>

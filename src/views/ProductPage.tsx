@@ -29,6 +29,7 @@ import { NotFoundPage } from "./NotFoundPage";
 import { WarrantyPicker, toCartWarranty } from "@/components/product/WarrantyPicker";
 import { useWarrantyOptions } from "@/hooks/useWarrantyOptions";
 import { detail as metricaDetail, toMetricaProduct } from "@/lib/analytics/metrica";
+import { openCartDrawer } from "@/lib/cart-events";
 
 export function ProductPage({
   initialProduct,
@@ -211,7 +212,7 @@ function ReadyProductPage({
       variant: "success",
       title: "Добавлено в корзину",
       description: `${product.title} × ${qty} · ${formatPrice((product.price ?? 0) * qty + extra)}`,
-      action: { label: "Перейти к оформлению", onClick: () => router.push("/checkout") },
+      action: { label: "Перейти в корзину", onClick: openCartDrawer },
     });
   };
 

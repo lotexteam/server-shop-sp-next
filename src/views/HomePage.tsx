@@ -22,6 +22,7 @@ import { fetchBlogPosts, categoryHref } from "@/lib/api";
 import type { Article, Category, Product } from "@/data/types";
 import { useEffect, useState } from "react";
 import { useMenu } from "@/hooks/useMenu";
+import { openCartDrawer } from "@/lib/cart-events";
 
 const NEXT_SECTION_ID = "why-story";
 
@@ -99,7 +100,7 @@ export function HomePage({
       .catch(() => setArticles([]));
   }, []);
 
-  const add = (p: Product) => { addToCart(p); push({ variant: "success", title: "Добавлено в корзину", description: p.title, action: { label: "Перейти к оформлению", onClick: () => router.push("/checkout") } }); };
+  const add = (p: Product) => { addToCart(p); push({ variant: "success", title: "Добавлено в корзину", description: p.title, action: { label: "Перейти в корзину", onClick: openCartDrawer } }); };
   const fav = (p: Product) => { toggleFav(p); push({ variant: "info", title: "Избранное обновлено" }); };
 
   return (

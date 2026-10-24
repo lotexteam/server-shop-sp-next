@@ -23,6 +23,7 @@ import Link from "next/link";
 import { useRouter, useParams, usePathname, useSearchParams } from "next/navigation";
 import { fetchBrands, fetchCatalogFilters, fetchProducts, productPath, categoryHref, type CatalogFilterAttr } from "@/lib/api";
 import { seedCategories, useCategories } from "@/hooks/useCategories";
+import { openCartDrawer } from "@/lib/cart-events";
 
 const emptyFilters: Filters = {
   categories: [],
@@ -180,7 +181,7 @@ export function CatalogPage({
   const { push } = useToast();
   const add = (p: Product) => {
     addToCart(p);
-    push({ variant: "success", title: "Добавлено в корзину", description: p.title, action: { label: "Перейти к оформлению", onClick: () => router.push("/checkout") } });
+    push({ variant: "success", title: "Добавлено в корзину", description: p.title, action: { label: "Перейти в корзину", onClick: openCartDrawer } });
   };
   const fav = (p: Product) => {
     toggleFav(p);

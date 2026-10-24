@@ -8,11 +8,21 @@ import { EmptyState } from "../ui/empty-state";
 import { cartLineGoodsTotal, isLineOnRequest, useShop } from "@/store/shop";
 import { formatPrice } from "@/lib/utils";
 import { CartConfigurationSummary } from "@/components/cart/CartConfigurationSummary";
+import { OPEN_CART_EVENT } from "@/lib/cart-events";
+import { useEffect, useState } from "react";
 
 export function CartDrawer() {
   const { cart, cartCount, cartTotal, setQty, removeFromCart } = useShop();
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    const openCart = () => setOpen(true);
+    window.addEventListener(OPEN_CART_EVENT, openCart);
+    return () => window.removeEventListener(OPEN_CART_EVENT, openCart);
+  }, []);
+
   return (
-    <Drawer>
+    <Drawer open={open} onOpenChange={setOpen}>
       <DrawerTrigger asChild>
         <button className="relative flex size-11 items-center justify-center rounded-md text-foreground transition-colors hover:bg-secondary hover:text-primary" aria-label="Корзина">
           <ShoppingCart className="size-5" />
