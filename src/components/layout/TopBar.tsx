@@ -1,7 +1,7 @@
 "use client";
 
 import { Fragment } from "react";
-import { Phone, Truck, ShieldCheck, MapPin } from "lucide-react";
+import { Mail, Phone, Truck, ShieldCheck, MapPin } from "lucide-react";
 import { useContacts } from "@/hooks/useContacts";
 import { useHomeContent } from "@/hooks/useHomeContent";
 
@@ -17,6 +17,7 @@ export function TopBar() {
     ? home.topbarLines[1] || null
     : contacts?.topbar.warranty?.trim() || null;
   const address = contacts?.address?.trim() || null;
+  const email = contacts?.email?.trim() || null;
   const phone = contacts?.phone?.trim() || null;
   // Все номера из CMS (Настройки → Контакты), первый — основной
   const phones = (contacts?.phones?.length
@@ -28,7 +29,7 @@ export function TopBar() {
 
   // Reserve the bar height on first paint: when contacts/CMS arrive later,
   // the bar must not push the whole page down (layout shift).
-  if (!delivery && !warranty && !address && phones.length === 0) {
+  if (!delivery && !warranty && !address && !email && phones.length === 0) {
     return (
       <div
         data-chrome="topbar"
@@ -61,19 +62,32 @@ export function TopBar() {
             </span>
           )}
         </div>
-        {phones.length > 0 && (
-          <span className="flex shrink-0 items-center gap-1.5">
-            {phones.map((p, i) => (
-              <Fragment key={p.href}>
-                {i > 0 && <span className="opacity-60">·</span>}
-                <a
-                  href={p.href}
-                  className="flex items-center gap-1.5 font-semibold transition-opacity hover:opacity-80"
-                >
-                  {i === 0 && <Phone className="size-3.5" />} {p.label}
-                </a>
-              </Fragment>
-            ))}
+        {(phones.length > 0 || email) && (
+          <span className="flex min-w-0 shrink-0 items-center gap-3">
+            {phones.length > 0 && (
+              <span className="flex min-w-0 items-center gap-1.5">
+                {phones.map((p, i) => (
+                  <Fragment key={p.href}>
+                    {i > 0 && <span className="opacity-60">·</span>}
+                    <a
+                      href={p.href}
+                      className="flex items-center gap-1.5 font-semibold transition-opacity hover:opacity-80"
+                    >
+                      {i === 0 && <Phone className="size-3.5 shrink-0" />} {p.label}
+                    </a>
+                  </Fragment>
+                ))}
+              </span>
+            )}
+            {email && (
+              <a
+                href={`mailto:${email}`}
+                className="flex min-w-0 items-center gap-1.5 transition-opacity hover:opacity-80"
+              >
+                <Mail className="size-3.5 shrink-0" />
+                <span className="max-w-[16rem] truncate">{email}</span>
+              </a>
+            )}
           </span>
         )}
       </div>

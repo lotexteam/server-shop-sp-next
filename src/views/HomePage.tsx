@@ -72,7 +72,6 @@ export function HomePage({
     t.eyebrow.trim() !== "" || t.title.trim() !== "" || (t.action ?? "").trim() !== "";
   const secCategories = secText("categories");
   const secHotDeals = secText("hotDeals");
-  const secBestsellers = secText("bestsellers");
   const secReviews = secText("reviews");
   const secBlog = secText("blog");
   const secFaq = secText("faq");
@@ -93,7 +92,6 @@ export function HomePage({
   const catalog = products;
   const hot = catalog.filter((p) => p.oldPrice).slice(0, 4);
   const hits = (hot.length ? hot : catalog).slice(0, 4);
-  const bestsellers = (hot.length ? catalog.filter((p) => !hot.includes(p)) : catalog).slice(0, 4);
 
   useEffect(() => {
     void fetchBlogPosts({ per_page: 4 })
@@ -317,22 +315,6 @@ export function HomePage({
             </div>
           </div>
         </Reveal>
-      </Section>
-      )}
-
-      {/* BESTSELLERS */}
-      {hasText(secBestsellers) && (
-      <Section className="!pt-0">
-        <SectionHeader eyebrow={secBestsellers.eyebrow} title={secBestsellers.title} action={secBestsellers.action ? { label: secBestsellers.action, href: "/catalog" } : undefined} />
-        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
-          {bestsellers.length === 0
-            ? Array.from({ length: 4 }).map((_, i) => <ProductCardSkeleton key={`bs-${i}`} />)
-            : bestsellers.map((p, i) => (
-                <Reveal key={p.id} delay={i * 0.05}>
-                  <ProductCard product={p} onAdd={add} onFav={fav} />
-                </Reveal>
-              ))}
-        </div>
       </Section>
       )}
 
