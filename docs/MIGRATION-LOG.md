@@ -1,5 +1,18 @@
 # Журнал миграции sp-ui → sp-next (рецепт для sale-ui)
 
+## 2026-10-24 — per_page cap 100 + 429 retry (контракт API, server-shop)
+
+Backend оптимизации (server-shop, 2026-10-24) поднял cap `per_page` у
+`GET /api/v1/products` с 500 до **100** — см. `server-shop/docs/STOREFRONT-API.md`.
+
+- `src/lib/api.ts`: дефолт `fetchProducts` `per_page ?? 250` → `?? 100`.
+- `src/hooks/useCatalogProducts.ts`: `fetchAllCatalogPages()` pageSize 250 → 100
+  (полная догрузка каталога в память теперь по 100 на страницу; клиентский
+  лимит `MAX_PUBLIC_GETS=3` + интервал 120 мс уже сглаживают поток).
+- `src/lib/api.ts`, `request()`: при **429** на GET — один retry после
+  `Retry-After` (дефолт 1.5 с, потолок 15 с). Лимит storefront 60/min;
+  rapid-смена фильтров и полная загрузка каталога могли утыкаться в него.
+
 ## 2026-10-08 — Styled preflight 404
 
 Preflight 404 теперь отдаёт полноценную inline-styled брендированную страницу вместо технического HTML: логотип, крупный код 404, текст, адаптивные кнопки «На главную» и «В каталог». HTTP status, noindex и fail-open поведение сохранены.

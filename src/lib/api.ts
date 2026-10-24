@@ -182,11 +182,25 @@ async function request<T>(
     headers.set("X-Cart-Token", cartToken);
   }
 
-  const res = await fetchPublic(`${API_BASE}${path.startsWith("/") ? path : `/${path}`}`, {
-    ...init,
-    headers,
-    body: init.json !== undefined ? JSON.stringify(init.json) : init.body,
-  });
+  const doFetch = () =>
+    fetchPublic(`${API_BASE}${path.startsWith("/") ? path : `/${path}`}`, {
+      ...init,
+      headers,
+      body: init.json !== undefined ? JSON.stringify(init.json) : init.body,
+    });
+
+  let res = await doFetch();
+
+  // 429 (server rate limit, storefront 60/min): retry once after Retry-After
+  // for idempotent GETs. The public-GET queue already throttles bursts, but a
+  // full-catalog load or rapid filter toggles can still hit the limit.
+  const method = (init.method || "GET").toUpperCase();
+  if (res.status === 429 && method === "GET") {
+    const retryAfterS = Number(res.headers.get("Retry-After") ?? 0);
+    const waitMs = Math.min(Math.max(retryAfterS > 0 ? retryAfterS * 1000 : 1500, 1500), 15000);
+    await new Promise((resolve) => setTimeout(resolve, waitMs));
+    res = await doFetch();
+  }
 
   const text = await res.text();
   let data: unknown = null;
@@ -492,7 +506,8 @@ export async function fetchProducts(params?: {
   sort?: "price-asc" | "price-desc" | "search";
 }): Promise<{ items: Product[]; total: number; page: number; lastPage: number }> {
   const qs = new URLSearchParams();
-  qs.set("per_page", String(params?.per_page ?? 250));
+  // Server caps per_page at 100 (was 500 before 2026-10-24) — stay at the cap.
+  qs.set("per_page", String(params?.per_page ?? 100));
   if (params?.page) qs.set("page", String(params.page));
   if (params?.q) qs.set("q", params.q);
   const catIds = [

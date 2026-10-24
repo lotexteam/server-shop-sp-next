@@ -6,10 +6,10 @@ import { fetchProducts, fetchProduct } from "@/lib/api";
 
 /**
  * Fetch every catalog page in parallel (instead of page-by-page).
- * The server caps per_page at 500.
+ * The server caps per_page at 100 (was 500 before 2026-10-24).
  */
 async function fetchAllCatalogPages(): Promise<Product[]> {
-  const pageSize = 250;
+  const pageSize = 100;
   const first = await fetchProducts({ page: 1, per_page: pageSize });
   const all = [...first.items];
   const lastPage = Math.max(
