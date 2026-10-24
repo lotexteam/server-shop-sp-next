@@ -1,6 +1,6 @@
 import { ProductPage } from "@/views/ProductPage";
 import { pageSeo, JsonLd } from "@/lib/seo-page";
-import { fetchProductServer } from "@/lib/server-data";
+import { fetchCategoriesCached, fetchProductServer } from "@/lib/server-data";
 import { notFound, permanentRedirect } from "next/navigation";
 
 export const dynamic = "force-dynamic";
@@ -35,11 +35,18 @@ export default async function Page({ params }: Props) {
   // Серверный SSR контента: тот же endpoint /products/{slug}, что и клиентский
   // fetchProduct. API недоступен → null → отдаём клиенту самому догрузить,
   // а не подменяем страницу 404 (не путаем сбой витринного API с ошибкой адреса).
-  const initialProduct = await fetchProductServer(slug);
+  // Дерево категорий — для крошек «Каталог → … → подкатегория» в SSR-HTML.
+  const [initialProduct, categories] = await Promise.all([
+    fetchProductServer(slug),
+    fetchCategoriesCached(),
+  ]);
   return (
     <>
       <JsonLd blocks={jsonld} />
-      <ProductPage initialProduct={initialProduct} />
+      <ProductPage
+        initialProduct={initialProduct}
+        initialCategories={categories ?? undefined}
+      />
     </>
   );
 }

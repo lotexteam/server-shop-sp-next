@@ -33,13 +33,15 @@ export default async function Page({ params }: Props) {
   // P0.2: неизвестная категория → настоящий 404 (а не 200 с пустым каталогом).
   if (isMissing) notFound();
   // P0.1: SSR первой страницы каталога теми же endpoint'ами, что у хуков.
-  const { products, categories } = await fetchCatalogPageServer();
+  // slug — чтобы SSR-товары были из категории, а не всего каталога.
+  const { products, total, categories } = await fetchCatalogPageServer(slug);
   return (
     <>
       <JsonLd blocks={jsonld} />
       <CatalogPage
         initialProducts={products ?? undefined}
         initialCategories={categories ?? undefined}
+        initialTotal={total}
       />
     </>
   );

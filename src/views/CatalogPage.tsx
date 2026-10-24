@@ -22,7 +22,7 @@ import type { Category, Product } from "@/data/types";
 import Link from "next/link";
 import { useRouter, useParams, usePathname, useSearchParams } from "next/navigation";
 import { fetchBrands, fetchCatalogFilters, fetchProducts, productPath, categoryHref, type CatalogFilterAttr } from "@/lib/api";
-import { useCategories } from "@/hooks/useCategories";
+import { seedCategories, useCategories } from "@/hooks/useCategories";
 
 const emptyFilters: Filters = {
   categories: [],
@@ -124,12 +124,18 @@ function mergeFacets(next: CatalogFilterAttr[], prev: CatalogFilterAttr[]): Cata
 export function CatalogPage({
   initialProducts,
   initialCategories,
+  initialTotal = 0,
 }: {
   /** SSR-первая страница каталога (передаёт app/catalog*); hook догружает полный каталог */
   initialProducts?: Product[];
-  /** SSR-дерево категорий (передаёт app/catalog/[slug]) */
+  /** SSR-дерево категорий (передаёт app/catalog*); засевается в кэш до первого рендера */
   initialCategories?: Category[];
+  /** SSR-всего товаров в текущей области (для строки «Найдено N товаров») */
+  initialTotal?: number;
 } = {}) {
+  // SSR-дерево — до useCategories: крошки/H1/чипы на первом рендере уже
+  // видят категории (и остаются корректными при сбое клиентского fetch).
+  if (initialCategories?.length) seedCategories(initialCategories);
   const searchParams = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();
@@ -157,8 +163,10 @@ export function CatalogPage({
   const [sort, setSort] = useState<Sort>("popular");
   const [view, setView] = useState<"grid" | "list">("grid");
   const [page, setPage] = useState(1);
-  const [pageItems, setPageItems] = useState<Product[]>([]);
-  const [total, setTotal] = useState(0);
+  // SSR-первая страница — стартовый рендер (совпадает с SSR-HTML; эффект
+  // подтянет актуальные данные при любых URL-фильтрах).
+  const [pageItems, setPageItems] = useState<Product[]>(initialProducts ?? []);
+  const [total, setTotal] = useState(initialTotal);
   const [productsLoading, setProductsLoading] = useState(true);
   const [brands, setBrands] = useState<Array<{ id: string; name: string }>>([]);
   const [facets, setFacets] = useState<CatalogFilterAttr[]>([]);

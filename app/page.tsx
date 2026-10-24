@@ -1,7 +1,7 @@
 import { HomePage } from "@/views/HomePage";
 import { pageSeo, JsonLd } from "@/lib/seo-page";
 import { permanentRedirect } from "next/navigation";
-import { fetchProductsCached } from "@/lib/server-data";
+import { fetchCategoriesCached, fetchProductsCached } from "@/lib/server-data";
 
 export const dynamic = "force-dynamic";
 
@@ -28,14 +28,21 @@ export default async function Page() {
   if (redirectTo) permanentRedirect(redirectTo);
   // P0.1: SSR подборки главной — те же параметры, что у loadHomeHighlights
   // (одна страница /products, 24 шт, без чистых cfg-opt-* опций).
-  const page1 = await fetchProductsCached(1, 24);
+  // Дерево категорий — для плиток с подкатегориями в SSR-HTML.
+  const [page1, categories] = await Promise.all([
+    fetchProductsCached(1, 24),
+    fetchCategoriesCached(),
+  ]);
   const initialProducts = page1
     ? page1.items.filter((p) => !p.slug.startsWith("cfg-opt-"))
     : null;
   return (
     <>
       <JsonLd blocks={jsonld} />
-      <HomePage initialProducts={initialProducts ?? undefined} />
+      <HomePage
+        initialProducts={initialProducts ?? undefined}
+        initialCategories={categories ?? undefined}
+      />
     </>
   );
 }

@@ -7,12 +7,24 @@ import { fetchCategories } from "@/lib/api";
 let cache: Category[] | null = null;
 let inflight: Promise<Category[]> | null = null;
 
+/**
+ * Засеять кэш SSR-данными до первого рендера клиентских хуков: страница
+ * (app/catalog, app/product, app/page) передаёт дерево из серверной сборки —
+ * крошки/H1/плитки не мигают в «корневое» состояние и остаются корректными,
+ * даже если клиентский fetch категорий ещё не вернулся (или упал).
+ */
+export function seedCategories(cats: Category[] | null | undefined): void {
+  if (cats && cats.length && !cache) cache = cats;
+}
+
 export async function loadCategories(force = false): Promise<Category[]> {
-  if (!force && cache) return cache;
+  // Пустой массив не кэшируем: сбой/пустой ответ не должны «запинить»
+  // дерево до полной перезагрузки страницы.
+  if (!force && cache && cache.length) return cache;
   if (!force && inflight) return inflight;
   inflight = fetchCategories(true)
     .then((cats) => {
-      cache = cats;
+      cache = cats.length ? cats : null;
       return cats;
     })
     .finally(() => {

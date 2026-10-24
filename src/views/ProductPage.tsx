@@ -24,13 +24,22 @@ import { useToast } from "@/components/ui/toast";
 import { useCompareAction } from "@/hooks/useCompareAction";
 import { fetchProduct, fetchProducts, categoryHref } from "@/lib/api";
 import type { Category, Product } from "@/data/types";
-import { useCategories } from "@/hooks/useCategories";
+import { seedCategories, useCategories } from "@/hooks/useCategories";
 import { NotFoundPage } from "./NotFoundPage";
 import { WarrantyPicker, toCartWarranty } from "@/components/product/WarrantyPicker";
 import { useWarrantyOptions } from "@/hooks/useWarrantyOptions";
 import { detail as metricaDetail, toMetricaProduct } from "@/lib/analytics/metrica";
 
-export function ProductPage({ initialProduct }: { initialProduct?: Product | null }) {
+export function ProductPage({
+  initialProduct,
+  initialCategories,
+}: {
+  initialProduct?: Product | null;
+  /** SSR-дерево категорий — крошки «Каталог → … → подкатегория» видны сразу */
+  initialCategories?: Category[];
+}) {
+  // До useCategories: цепочка категорий в SSR-HTML, без «Каталог → товар».
+  if (initialCategories?.length) seedCategories(initialCategories);
   const routeParams = useParams();
   const slug = typeof routeParams.slug === "string" ? routeParams.slug : undefined;
   // SSR-товар: H1/цена/характеристики рендерятся сразу в HTML (без скелета).

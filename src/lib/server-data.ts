@@ -347,14 +347,18 @@ export async function fetchProductServer(
 /**
  * Тот же endpoint/shape, что fetchProducts(page, per_page) в lib/api.ts:
  * GET /products?page&per_page → { items, total, page, lastPage }.
+ * categoryIds — как в клиентском fetchProducts: filter[category_id][], бэк
+ * сам раскрывает ID в поддерево (CatalogCriteria::selfAndDescendantIds).
  */
 export async function fetchProductsServer(
   page = 1,
   perPage = 12,
+  categoryIds?: string[],
 ): Promise<{ items: Product[]; total: number; page: number; lastPage: number } | null> {
   const qs = new URLSearchParams();
   qs.set("per_page", String(perPage));
   if (page) qs.set("page", String(page));
+  for (const id of categoryIds ?? []) qs.append("filter[category_id][]", id);
   const res = await serverGet<ApiItem<ApiProduct[]>>(
     `/products?${qs}`,
     PRODUCT_LIST_REVALIDATE_S,
@@ -405,21 +409,50 @@ export function applyCatalogFilter(products: Product[]): Product[] {
   );
 }
 
+/** Поиску категории в SSR-дереве (плоское ЧПУ /catalog/{slug}). */
+function findCategoryBySlugServer(nodes: Category[], slug: string): Category | undefined {
+  for (const n of nodes) {
+    if (n.slug === slug) return n;
+    const hit = findCategoryBySlugServer((n.children ?? []) as Category[], slug);
+    if (hit) return hit;
+  }
+  return undefined;
+}
+
 /**
  * Серверная сборка страницы каталога: товары (первая страница, 12 шт —
  * тот же PAGE_SIZE, что клиентский CatalogPage) + категории деревом.
+ * slug (ЧПУ /catalog/{slug}) фильтрует первую страницу теми же category_ids,
+ * что и клиентский CatalogPage — иначе SSR-HTML показывает весь каталог,
+ * а не настроенную категорию.
  * Обе ошибки → null-поля (API-сбой не превращаем в 404 каталога).
  */
-export async function fetchCatalogPageServer(): Promise<{
+export async function fetchCatalogPageServer(slug?: string): Promise<{
   products: Product[] | null;
+  total: number;
   categories: Category[] | null;
 }> {
-  const [products, categories] = await Promise.all([
-    fetchProductsCached(1, 12),
-    fetchCategoriesCached(),
-  ]);
+  const categories = await fetchCategoriesCached();
+  // Дерево нужно до запроса товаров: slug → id категории (поддерево бэк сам
+  // раскроет). Неизвестный slug — не 404 здесь: его ловит pageSeo до рендера.
+  const categoryIds =
+    slug && categories
+      ? [findCategoryBySlugServer(categories, decodeURIComponentSafe(slug))?.id].filter(
+          (id): id is string => Boolean(id),
+        )
+      : [];
+  const products = await fetchProductsCached(1, 12, categoryIds);
   return {
     products: products ? applyCatalogFilter(products.items) : null,
+    total: products?.total ?? 0,
     categories,
   };
+}
+
+function decodeURIComponentSafe(slug: string): string {
+  try {
+    return decodeURIComponent(slug);
+  } catch {
+    return slug;
+  }
 }

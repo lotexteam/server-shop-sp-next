@@ -6,7 +6,7 @@ import { getIcon } from "@/lib/icons";
 import { ArrowRight, ChevronDown, ChevronRight, ChevronUp } from "lucide-react";
 import { Reveal } from "@/components/common/Section";
 import { cn } from "@/lib/utils";
-import { useCategories } from "@/hooks/useCategories";
+import { seedCategories, useCategories } from "@/hooks/useCategories";
 import { useMenu } from "@/hooks/useMenu";
 import { categoryHref, type MenuNavItem } from "@/lib/api";
 import type { Category } from "@/data/types";
@@ -57,7 +57,10 @@ function categorySlugFromMenuItem(item: MenuNavItem): string | null {
   return m ? decodeURIComponent(m[1]) : null;
 }
 
-export function CatalogCategories() {
+export function CatalogCategories({ initialCategories }: { initialCategories?: Category[] }) {
+  // SSR-дерево — до useCategories: подкатегории плиток видны в SSR-HTML,
+  // даже если клиентский fetch ещё не вернулся.
+  if (initialCategories?.length) seedCategories(initialCategories);
   const { items: homeMenu, loading: menuLoading, subcategoriesDepth } = useMenu("home");
   const { categories, loading: catsLoading } = useCategories();
 

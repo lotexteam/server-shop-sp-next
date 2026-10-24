@@ -17,9 +17,9 @@ import { useToast } from "@/components/ui/toast";
 import { useHomeHighlights } from "@/hooks/useCatalogProducts";
 import { useHomeContent } from "@/hooks/useHomeContent";
 import { useContacts } from "@/hooks/useContacts";
-import { useCategories } from "@/hooks/useCategories";
+import { seedCategories, useCategories } from "@/hooks/useCategories";
 import { fetchBlogPosts, categoryHref } from "@/lib/api";
-import type { Article, Product } from "@/data/types";
+import type { Article, Category, Product } from "@/data/types";
 import { useEffect, useState } from "react";
 import { useMenu } from "@/hooks/useMenu";
 
@@ -31,7 +31,15 @@ function scrollToNextSection() {
 
 const brands = ["Dell", "HPE", "Intel", "AMD", "Supermicro", "Lenovo", "Cisco", "NVIDIA"];
 
-export function HomePage({ initialProducts }: { initialProducts?: Product[] }) {
+export function HomePage({
+  initialProducts,
+  initialCategories,
+}: {
+  initialProducts?: Product[];
+  /** SSR-дерево категорий для плиток главной */
+  initialCategories?: Category[];
+}) {
+  if (initialCategories?.length) seedCategories(initialCategories);
   const router = useRouter();
   const { addToCart, toggleFav } = useShop();
   const { push } = useToast();
@@ -253,7 +261,7 @@ export function HomePage({ initialProducts }: { initialProducts?: Product[] }) {
           title={secCategories.title}
           action={secCategories.action ? { label: secCategories.action, href: "/catalog" } : undefined}
         />
-        <CatalogCategories />
+        <CatalogCategories initialCategories={initialCategories} />
       </Section>
       ) : null}
 

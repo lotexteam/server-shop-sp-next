@@ -1,5 +1,37 @@
 # Журнал миграции sp-ui → sp-next (рецепт для sale-ui)
 
+## 2026-10-24 — SSR-дерево категорий: крошки/плитки/категория не «корневые»
+
+Симптомы: на товаре крошки «Каталог → товар» (без цепочки категорий),
+`/catalog/{slug}` на первом рендере показывал корневой каталог (H1
+«Каталог оборудования», вся выдача, а не категория), на главной плитки
+без подкатегорий — до возврата клиентского fetch `/categories?tree=1`,
+и навсегда, если этот fetch упал (CORS/origin/рейт-лимит).
+
+Причина: `fetchCatalogPageServer()` игнорировал slug (SSR-товары — всегда
+первая страница всего каталога), а `initialProducts`/`initialCategories`
+декларировались в `CatalogPage`/`ProductPage`/`HomePage`, но не
+использовались — первое состояние всегда «корневое».
+
+- `src/lib/server-data.ts`: `fetchProductsServer(page, perPage, categoryIds?)`
+  (+`filter[category_id][]`; бэк раскрывает ID в поддерево, как у клиента);
+  `fetchCatalogPageServer(slug?)` — сначала дерево, затем первая страница
+  уже по категории; возвращает `total` для строки «Найдено N товаров».
+- `src/hooks/useCategories.ts`: `seedCategories()` — засевание модульного
+  кэша SSR-данными до первого рендера клиентских хуков; пустой массив
+  больше не «запинывает» кэш (сбой/пустой ответ не прилипают до reload).
+- `app/catalog*`, `app/product/[slug]`, `app/page.tsx`: дерево категорий
+  (и `total`) передаются во views; `CatalogPage`/`ProductPage`/`HomePage`/
+  `CatalogCategories` зовут `seedCategories()` до `useCategories()`.
+
+Результат: `/catalog/{slug}` в SSR-HTML — H1 категории, крошки
+«Каталог → Категория», товары категории; крошки товара получают цепочку
+из RSC-payload (корректны на гидрации даже при сбое клиентского fetch).
+Известное ограничение (прежний behaviour): тело `/product/[slug]`
+рендерится клиентом (bailout до изменения, не только dev) — в SSR-HTML
+крошки товара не появляются; мега-меню (hover) — тоже клиентский fetch.
+`typecheck` и `next build` — без ошибок.
+
 ## 2026-10-24 — per_page cap 100 + 429 retry (контракт API, server-shop)
 
 Backend оптимизации (server-shop, 2026-10-24) поднял cap `per_page` у

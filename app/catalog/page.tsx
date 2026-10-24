@@ -27,13 +27,14 @@ export default async function Page() {
   // Legacy 301 (P0.2/P0.4): slug renames etc - from the page body.
   if (redirectTo) permanentRedirect(redirectTo);
   // P0.1: SSR первой страницы каталога теми же endpoint'ами, что у хуков.
-  const { products, categories } = await fetchCatalogPageServer();
+  const { products, total, categories } = await fetchCatalogPageServer();
   return (
     <>
       <JsonLd blocks={jsonld} />
       <CatalogPage
         initialProducts={products ?? undefined}
         initialCategories={categories ?? undefined}
+        initialTotal={total}
       />
     </>
   );
