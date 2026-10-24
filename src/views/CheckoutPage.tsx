@@ -22,6 +22,7 @@ import { formatBonus, bonusWord } from "@/lib/bonuses";
 import { quoteDeliveryMethod, groupDeliveryMethods } from "@/lib/commerce";
 import { purchase as metricaPurchase, toMetricaProduct, clientId as metricaClientId } from "@/lib/analytics/metrica";
 import {
+  fetchDeliveryCategories,
   fetchDeliveryMethods,
   fetchPaymentMethods,
   apiCheckoutPreview,
@@ -39,6 +40,7 @@ import {
   StorefrontApiError,
   normalizePhone,
   type CommerceMethod,
+  type DeliveryCategoryNode,
   type DellinCity,
   type DellinTerminal,
   type ShippingQuoteResult,
@@ -85,6 +87,7 @@ export function CheckoutPage() {
   const [consentChecked, setConsentChecked] = useState(false);
   const [consentError, setConsentError] = useState(false);
   const [apiMethods, setApiMethods] = useState<CommerceMethod[]>([]);
+  const [deliveryCategories, setDeliveryCategories] = useState<DeliveryCategoryNode[]>([]);
   const [paymentMethods, setPaymentMethods] = useState<CommerceMethod[]>([]);
   const [dellinQuote, setDellinQuote] = useState<ShippingQuoteResult | null>(null);
   const [dellinLoading, setDellinLoading] = useState(false);
@@ -97,6 +100,7 @@ export function CheckoutPage() {
 
   useEffect(() => {
     void fetchDeliveryMethods().then(setApiMethods);
+    void fetchDeliveryCategories().then(setDeliveryCategories);
     void fetchPaymentMethods().then((list) => {
       setPaymentMethods(list);
       if (list.length && !payment) setPayment(list[0].code);
@@ -109,14 +113,43 @@ export function CheckoutPage() {
     [cart],
   );
 
-  const apiMethod = apiMethods.find((m) => m.code === delivery);
+  const deliveryCategoryById = useMemo(() => {
+    const map = new Map<string, NonNullable<CommerceMethod["delivery_category"]>>();
+    const visit = (nodes: DeliveryCategoryNode[]) => {
+      for (const node of nodes) {
+        map.set(node.id, {
+          id: node.id,
+          slug: node.slug,
+          name: node.name,
+          sort_order: node.sort_order,
+        });
+        if (node.children?.length) visit(node.children);
+      }
+    };
+    visit(deliveryCategories);
+    return map;
+  }, [deliveryCategories]);
+
+  const normalizedMethods = useMemo(
+    () => apiMethods.map((method) => ({
+      ...method,
+      delivery_category:
+        method.delivery_category ||
+        (method.delivery_category_id
+          ? deliveryCategoryById.get(method.delivery_category_id) || null
+          : null),
+    })),
+    [apiMethods, deliveryCategoryById],
+  );
+
+  const apiMethod = normalizedMethods.find((m) => m.code === delivery);
   const isDellin =
     apiMethod?.driver === "dellin" ||
     delivery.startsWith("dellin");
 
   const methodOptions = useMemo(
     () =>
-      apiMethods.map((m) => ({
+      normalizedMethods.map((m) => ({
         id: m.code,
         title: m.name,
         subtitle:
@@ -136,7 +169,7 @@ export function CheckoutPage() {
         groupSlug: m.delivery_category?.slug || "",
         method: m,
       })),
-    [apiMethods],
+    [normalizedMethods],
   );
 
   /**
@@ -145,7 +178,7 @@ export function CheckoutPage() {
    * отдельные radio в том же списке. Сортировка — sort_order.
    */
   const deliveryGroups = useMemo(() => {
-    const { groups, ungrouped } = groupDeliveryMethods(apiMethods);
+    const { groups, ungrouped } = groupDeliveryMethods(normalizedMethods);
     const byCode = new Map(methodOptions.map((m) => [m.id, m]));
     const items = [
       ...groups.map((g) => ({
@@ -171,7 +204,7 @@ export function CheckoutPage() {
     return items
       .filter((g) => g.methods.length)
       .sort((a, b) => a.sort - b.sort);
-  }, [apiMethods, methodOptions]);
+  }, [normalizedMethods, methodOptions]);
 
   const selectedGroupSlug =
     methodOptions.find((m) => m.id === delivery)?.groupSlug || "";
