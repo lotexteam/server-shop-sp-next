@@ -6,7 +6,6 @@
  * Платформы = admin-linked merge (API platforms), UI как у атрибутов-слотов.
  */
 import { useEffect, useMemo, useRef, useState } from "react";
-import { createPortal } from "react-dom";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import ReactMarkdown from "react-markdown";
@@ -74,6 +73,13 @@ import {
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
+function encodeBuildParam(build: ConfiguratorBuild): string {
+  const bytes = new TextEncoder().encode(JSON.stringify(build.selections));
+  let binary = "";
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+}
+
 function decodeBuildParam(value: string | null): ConfiguratorBuild | null {
   if (!value || value.length > 12000) return null;
   try {
@@ -94,89 +100,21 @@ function decodeBuildParam(value: string | null): ConfiguratorBuild | null {
   }
 }
 
+function buildSelectionSignature(selections: ConfiguratorBuild["selections"]): string {
+  return JSON.stringify(
+    [...selections]
+      .map(({ slot_id, product_id, qty }) => ({ slot_id, product_id, qty }))
+      .sort((a, b) =>
+        a.slot_id.localeCompare(b.slot_id) ||
+        a.product_id.localeCompare(b.product_id) ||
+        a.qty - b.qty,
+      ),
+  );
+}
+
 type Props = {
   product: Product;
 };
-
-async function renderPrintWindow(printWindow: Window, title: string) {
-  const sheet = document.getElementById("config-print-sheet");
-  if (printWindow.closed) return;
-  if (!sheet) throw new Error("Не удалось сформировать лист конфигурации");
-  const printDocument = printWindow.document;
-  printDocument.open();
-  printDocument.write('<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body></body></html>');
-  printDocument.close();
-  printDocument.title = title;
-  const base = printDocument.createElement("base");
-  base.href = document.baseURI;
-  printDocument.head.prepend(base);
-  document.querySelectorAll('link[rel="stylesheet"], style').forEach((node) => {
-    const clone = node.cloneNode(true);
-    printDocument.head.appendChild(clone);
-  });
-  const style = printDocument.createElement("style");
-  style.textContent = `
-    html, body { background: #fff; color: #111; }
-    body { margin: auto; padding: 12mm; width: 100%; max-width: 210mm; box-sizing: border-box; }
-    .config-print-sheet { display: block !important; color: #111; background: #fff; overflow-wrap: anywhere; }
-    .config-print-sheet tr { break-inside: avoid; }
-    .print-window-actions { display: flex; justify-content: flex-end; margin-bottom: 16px; }
-    .print-window-actions button { border: 1px solid #454545; background: #fff; padding: 7px 14px; cursor: pointer; }
-    .print-window-actions button:disabled { opacity: .5; cursor: wait; }
-    @media print {
-      body { padding: 0; max-width: none; }
-      .print-window-actions { display: none !important; }
-      .config-print-sheet {
-        display: block !important;
-        width: 100% !important;
-        overflow: visible !important;
-        color: #111 !important;
-        background: #fff !important;
-        font-family: Arial, "Helvetica Neue", Helvetica, sans-serif !important;
-        font-size: 10pt !important;
-        line-height: 1.35 !important;
-        -webkit-print-color-adjust: exact !important;
-        print-color-adjust: exact !important;
-      }
-      .config-print-sheet > table { width: 100% !important; border-collapse: collapse !important; }
-      .config-print-sheet > table:first-of-type { font-size: 9pt !important; line-height: 1.35 !important; }
-      .config-print-sheet > table:first-of-type td { padding: 0 !important; border: 0 !important; }
-      .config-print-sheet > table:first-of-type td:first-child { width: 48% !important; text-align: left !important; }
-      .config-print-sheet > table:first-of-type td:nth-child(2) { width: 4% !important; }
-      .config-print-sheet > table:first-of-type td:last-child { width: 48% !important; text-align: right !important; }
-      .config-print-sheet h1 { margin: 28px 0 0 !important; text-align: center !important; font-size: 15pt !important; font-weight: 700 !important; text-transform: uppercase !important; }
-      .config-print-sheet > p:first-of-type { margin: 4px 0 0 !important; text-align: right !important; font-size: 9pt !important; }
-      .config-print-sheet > table:nth-of-type(2) { margin-top: 16px !important; font-size: 9pt !important; }
-      .config-print-sheet > table:nth-of-type(2) th,
-      .config-print-sheet > table:nth-of-type(2) td { border: 1px solid #454545 !important; padding: 4px 6px !important; }
-      .config-print-sheet > table:nth-of-type(2) th { background: #efefef !important; color: #111 !important; font-weight: 700 !important; }
-      .config-print-sheet > table:nth-of-type(2) th:nth-child(n+3),
-      .config-print-sheet > table:nth-of-type(2) td:nth-child(n+3) { text-align: center !important; }
-      .config-print-sheet > div { margin-top: 20px !important; text-align: right !important; font-size: 10pt !important; line-height: 1.5 !important; }
-      .config-print-sheet > div p { margin: 4px 0 0 !important; text-align: left !important; font-size: 9pt !important; }
-      .config-print-sheet img { max-width: 180px !important; max-height: 56px !important; object-fit: contain !important; }
-      .config-print-sheet > p:last-child { margin: 36px 0 0 !important; text-align: center !important; font-size: 8pt !important; color: #555 !important; }
-      .config-print-sheet tr { break-inside: avoid; }
-      @page { size: A4; margin: 12mm; }
-    }
-  `;
-  printDocument.head.appendChild(style);
-  const actions = printDocument.createElement("div");
-  actions.className = "print-window-actions";
-  const button = printDocument.createElement("button");
-  button.type = "button";
-  button.textContent = "Печать";
-  button.disabled = true;
-  button.addEventListener("click", () => printWindow.print());
-  actions.appendChild(button);
-  printDocument.body.appendChild(actions);
-  // Clone only the React-rendered quote, without storefront markup or scripts.
-  printDocument.body.appendChild(sheet.cloneNode(true));
-  if (!printWindow.closed) {
-    button.disabled = false;
-    printWindow.focus();
-  }
-}
 
 export function ConfigurableProductView({ product }: Props) {
   const router = useRouter();
@@ -185,8 +123,10 @@ export function ConfigurableProductView({ product }: Props) {
   const { isAuthenticated } = useAuth();
   const savedConfigId = searchParams.get("config");
   const buildParam = searchParams.get("build");
+  const printMode = searchParams.get("print") === "1";
   const shareToken = searchParams.get("share");
   const editSlug = searchParams.get("edit");
+  const warrantyParam = searchParams.get("warranty");
   const [editBuild, setEditBuild] = useState<ConfiguratorBuild | null>(null);
   const urlBuild = useMemo(() => decodeBuildParam(buildParam), [buildParam]);
   const [editReady, setEditReady] = useState(!editSlug);
@@ -256,21 +196,22 @@ export function ConfigurableProductView({ product }: Props) {
   }, [urlBuild, editBuild, sharedBuild, savedConfigId, savedConfigs, cart, product.id, product.slug]);
 
   const state = useProductConfigurator(product.slug, initialBuild);
-  const [warrantyTermId, setWarrantyTermId] = useState<string | null>(null);
-  const [qty, setQty] = useState(1);
+  const printBuildReady = Boolean(
+    buildParam &&
+    urlBuild?.selections.length &&
+    buildSelectionSignature(urlBuild.selections) ===
+      buildSelectionSignature(state.buildSelections),
+  );
+  const [warrantyTermId, setWarrantyTermId] = useState<string | null>(warrantyParam);
+  const [qty, setQty] = useState(() => {
+    const parsed = Number(searchParams.get("qty"));
+    return Number.isInteger(parsed) && parsed > 0 && parsed <= 999 ? parsed : 1;
+  });
   const [activeImg, setActiveImg] = useState(0);
   const [saving, setSaving] = useState(false);
   const [sharing, setSharing] = useState(false);
   const [printing, setPrinting] = useState(false);
-  const [printSnapshot, setPrintSnapshot] = useState<{
-    rows: PrintRow[];
-    platformName: string;
-    qty: number;
-    unitTotal: number;
-    warrantyName?: string | null;
-    warrantySum: number;
-  } | null>(null);
-  const printWindowRef = useRef<Window | null>(null);
+  const printStartedRef = useRef(false);
   const { push } = useToast();
 
   /** Platforms from admin API only (not «all servers in category»). */
@@ -356,8 +297,11 @@ export function ConfigurableProductView({ product }: Props) {
     !state.incomplete && state.buildSelections.length
       ? { selections: state.buildSelections }
       : null;
-  const { options: warrantyOptions, loading: warrantyLoading } =
-    useWarrantyOptions(state.cfg?.productId || product.id, warrantyBuild);
+  const {
+    options: warrantyOptions,
+    loading: warrantyLoading,
+    initialized: warrantyInitialized,
+  } = useWarrantyOptions(state.cfg?.productId || product.id, warrantyBuild);
   const warrantyChoice =
     warrantyOptions.find((o) => o.termId === warrantyTermId) ||
     warrantyOptions.find((o) => !o.isPaid) ||
@@ -405,59 +349,58 @@ export function ConfigurableProductView({ product }: Props) {
   }, [displayTitle, activePlatform?.onRequest, state.basePrice, state.cfg, state.selections]);
 
   const printConfig = () => {
-    if (typeof window === "undefined" || typeof document === "undefined" || !state.cfg || state.incomplete || printing || printWindowRef.current) return;
-    setPrinting(true);
-    setPrintSnapshot(null);
-    const printWindow = window.open("", "_blank");
+    if (typeof window === "undefined" || !state.cfg || state.incomplete || printing) return;
+    const url = new URL(`/product/${encodeURIComponent(cartSlug)}`, window.location.origin);
+    url.searchParams.set("build", encodeBuildParam({ selections: state.buildSelections }));
+    url.searchParams.set("qty", String(qty));
+    if (warrantyTermId) url.searchParams.set("warranty", warrantyTermId);
+    url.searchParams.set("print", "1");
+    const printWindow = window.open(url.toString(), "_blank");
     if (!printWindow) {
-      setPrinting(false);
       push({ variant: "error", title: "Не удалось открыть окно печати", description: "Разрешите всплывающие окна для сайта и повторите попытку" });
       return;
     }
-    printWindow.opener = null;
-    printWindow.document.title = "Подготовка конфигурации";
-    printWindow.document.body.textContent = "Подготавливаем конфигурацию...";
-    printWindowRef.current = printWindow;
-    if (printWindow.closed || printWindowRef.current !== printWindow) {
-      printWindowRef.current = null;
-      setPrinting(false);
-      return;
-    }
-    setPrintSnapshot({ rows: printRows, platformName: displayTitle, qty, unitTotal: state.total + warrantyExtra, warrantyName: warrantyChoice?.name, warrantySum: warrantyExtra });
+    setPrinting(true);
+    window.setTimeout(() => setPrinting(false), 1500);
   };
 
   useEffect(() => {
-    if (!printSnapshot || !printWindowRef.current) return;
-    const frame = window.requestAnimationFrame(() => {
-      const printWindow = printWindowRef.current;
-      if (!printWindow) return;
-      void renderPrintWindow(printWindow, `Конфигурация ${printSnapshot.platformName}`)
-        .catch((error: unknown) => {
-          printWindow.close();
-          push({ variant: "error", title: "Не удалось подготовить печать", description: error instanceof Error ? error.message : "Попробуйте ещё раз" });
-        })
-        .finally(() => {
-          printWindowRef.current = null;
-          setPrintSnapshot(null);
-          setPrinting(false);
-        });
-    });
-    return () => window.cancelAnimationFrame(frame);
-  }, [printSnapshot, push]);
+    if (
+      !printMode ||
+      !printBuildReady ||
+      printStartedRef.current ||
+      state.loading ||
+      warrantyLoading ||
+      !warrantyInitialized ||
+      !state.cfg ||
+      state.incomplete
+    ) return;
+    const timer = window.setTimeout(() => {
+      printStartedRef.current = true;
+      document.title = `Конфигурация ${displayTitle}`;
+      window.print();
+    }, 120);
+    return () => window.clearTimeout(timer);
+  }, [
+    printMode,
+    printBuildReady,
+    state.loading,
+    warrantyLoading,
+    warrantyInitialized,
+    state.cfg,
+    state.incomplete,
+    displayTitle,
+  ]);
 
-  useEffect(() => () => {
-    printWindowRef.current?.close();
-    printWindowRef.current = null;
-  }, []);
 
   useEffect(() => {
-    if (!warrantyOptions.length) return;
+    if (!warrantyInitialized || !warrantyOptions.length) return;
     if (warrantyTermId && warrantyOptions.some((o) => o.termId === warrantyTermId)) {
       return;
     }
     const base = warrantyOptions.find((o) => !o.isPaid);
     setWarrantyTermId(base?.termId ?? warrantyOptions[0]?.termId ?? null);
-  }, [warrantyOptions, warrantyTermId]);
+  }, [warrantyInitialized, warrantyOptions, warrantyTermId]);
 
   const buy = () => {
     if (state.incomplete || !state.cfg) {
@@ -652,10 +595,42 @@ export function ConfigurableProductView({ product }: Props) {
 
   if (!state.cfg) return null;
 
+  if (printMode) {
+    if (!printBuildReady || state.incomplete) {
+      return (
+        <main className="config-print-view min-h-screen bg-white p-6 text-black">
+          <p role="alert">
+            Не удалось восстановить эту конфигурацию из ссылки. Вернитесь в
+            конфигуратор и создайте новую ссылку для печати.
+          </p>
+        </main>
+      );
+    }
+    if (!warrantyInitialized) {
+      return (
+        <main className="config-print-view min-h-screen bg-white p-6 text-black" role="status">
+          Подготавливаем данные гарантии…
+        </main>
+      );
+    }
+    return (
+      <main className="config-print-view min-h-screen bg-white p-6 text-black">
+        <ConfigPrintSheet
+          platformName={displayTitle}
+          rows={printRows}
+          qty={qty}
+          unitTotal={state.total + warrantyExtra}
+          warrantyName={warrantyChoice?.name}
+          warrantySum={warrantyExtra}
+        />
+      </main>
+    );
+  }
+
   return (
     <div
       className={cn(
-        "container-page py-6 pb-28 lg:pb-8 lg:py-8",
+        "container-page py-6 pb-36 lg:pb-8 lg:py-8",
         state.switching && "pointer-events-none opacity-90",
       )}
     >
@@ -994,7 +969,12 @@ export function ConfigurableProductView({ product }: Props) {
                     <Minus className="size-4" />
                   </Button>
                   <span className="w-10 text-center font-semibold">{qty}</span>
-                  <Button size="icon-sm" variant="ghost" onClick={() => setQty((q) => q + 1)}>
+                  <Button
+                    size="icon-sm"
+                    variant="ghost"
+                    disabled={qty >= 999}
+                    onClick={() => setQty((q) => Math.min(999, q + 1))}
+                  >
                     <Plus className="size-4" />
                   </Button>
                 </div>
@@ -1066,40 +1046,86 @@ export function ConfigurableProductView({ product }: Props) {
 
       {/* Mobile sticky order */}
       <div className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-card/95 p-3 backdrop-blur lg:hidden">
-        <div className="container-page flex items-center gap-3">
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-caption text-muted-foreground">{displayTitle}</p>
-            <p className="text-h5 font-bold tabular-nums">
-              {formatPrice((state.total + warrantyExtra) * qty)}
-            </p>
-            <VatHint />
+        <div className="container-page flex flex-col gap-2">
+          <div className="flex min-w-0 items-center justify-between gap-2">
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-caption text-muted-foreground">{displayTitle}</p>
+              <p className="text-h5 font-bold tabular-nums">
+                {formatPrice((state.total + warrantyExtra) * qty)}
+              </p>
+              <VatHint />
+            </div>
+            <div className="mt-1 flex items-center gap-0.5" aria-label="Количество конфигураций">
+              <Button
+                size="icon-sm"
+                variant="ghost"
+                aria-label="Уменьшить количество"
+                disabled={qty <= 1}
+                onClick={() => setQty((q) => Math.max(1, q - 1))}
+              >
+                <Minus className="size-3.5" />
+              </Button>
+              <span className="min-w-5 text-center text-caption tabular-nums" aria-live="polite">
+                {qty}
+              </span>
+              <Button
+                size="icon-sm"
+                variant="ghost"
+                aria-label="Увеличить количество"
+                disabled={qty >= 999}
+                onClick={() => setQty((q) => Math.min(999, q + 1))}
+              >
+                <Plus className="size-3.5" />
+              </Button>
+            </div>
           </div>
-          <Button
-            size="icon"
-            variant="outline"
-            onClick={() => void printConfig()}
-            disabled={state.incomplete || printing}
-            aria-label="Печать"
-          >
-            <Printer className="size-4" />
-          </Button>
-          <Button size="lg" variant="gradient" onClick={buy} disabled={state.incomplete}>
-            В корзину
-          </Button>
+          <div className="flex w-full items-center gap-2">
+            <Button
+              size="icon"
+              variant="outline"
+              className="shrink-0"
+              onClick={() => void save()}
+              disabled={state.incomplete || saving || sharing}
+              aria-label="Сохранить сборку"
+              title="Сохранить сборку"
+            >
+              {saving ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
+            </Button>
+            <Button
+              size="icon"
+              variant="outline"
+              className="shrink-0"
+              onClick={() => void share()}
+              disabled={state.incomplete || sharing || saving}
+              aria-label="Поделиться сборкой"
+              title="Поделиться сборкой"
+            >
+              {sharing ? <Loader2 className="size-4 animate-spin" /> : <Share2 className="size-4" />}
+            </Button>
+            <Button
+              size="icon"
+              variant="outline"
+              className="shrink-0"
+              onClick={() => void printConfig()}
+              disabled={state.incomplete || printing}
+              aria-label="Печать"
+              title="Печать"
+            >
+              <Printer className="size-4" />
+            </Button>
+            <Button
+              size="lg"
+              variant="gradient"
+              className="min-w-0 flex-1"
+              onClick={buy}
+              disabled={state.incomplete}
+              aria-label="Добавить конфигурацию в корзину"
+            >
+              В корзину
+            </Button>
+          </div>
         </div>
       </div>
-
-      {createPortal(
-        <ConfigPrintSheet
-          platformName={printSnapshot?.platformName || displayTitle}
-          rows={printSnapshot?.rows || printRows}
-          qty={printSnapshot?.qty ?? qty}
-          unitTotal={printSnapshot?.unitTotal ?? (state.total + warrantyExtra)}
-          warrantyName={printSnapshot?.warrantyName ?? warrantyChoice?.name}
-          warrantySum={printSnapshot?.warrantySum ?? warrantyExtra}
-        />,
-        document.body,
-      )}
     </div>
   );
 }

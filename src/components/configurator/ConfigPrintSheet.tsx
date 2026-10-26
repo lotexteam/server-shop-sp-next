@@ -140,10 +140,12 @@ export function ConfigPrintSheet({
             <tr>
               <td className="border border-[#454545] px-2 py-1">Гарантия</td>
               <td className="border border-[#454545] px-2 py-1">{warrantyName}</td>
-              <td className="border border-[#454545] px-2 py-1 text-center"> </td>
-              <td className="border border-[#454545] px-2 py-1 text-center"> </td>
               <td className="border border-[#454545] px-2 py-1 text-center">
                 {warrantySum ? formatPrice(warrantySum) : "вкл."}
+              </td>
+              <td className="border border-[#454545] px-2 py-1 text-center">{qty}</td>
+              <td className="border border-[#454545] px-2 py-1 text-center">
+                {warrantySum ? formatPrice(warrantySum * qty) : "вкл."}
               </td>
             </tr>
           ) : null}

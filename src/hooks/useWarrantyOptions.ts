@@ -6,39 +6,52 @@ import {
   type WarrantyOption,
 } from "@/lib/api";
 
+type WarrantyResult = {
+  key: string;
+  options: WarrantyOption[];
+};
+
 export function useWarrantyOptions(
   productKey: string | undefined,
   build?: { selections: Array<{ slot_id: string; product_id: string; qty: number }> } | null,
 ) {
-  const [options, setOptions] = useState<WarrantyOption[]>([]);
-  const [loading, setLoading] = useState(false);
   const buildKey = build?.selections?.length
     ? JSON.stringify(build.selections)
     : "";
+  const requestKey = JSON.stringify([productKey ?? "", buildKey]);
+  const [result, setResult] = useState<WarrantyResult | null>(null);
+  const initialized = result?.key === requestKey;
+  const options = initialized ? result.options : [];
 
   useEffect(() => {
-    if (!productKey) {
-      setOptions([]);
-      return;
-    }
     let cancelled = false;
-    setLoading(true);
-    const t = window.setTimeout(() => {
+    if (!productKey) {
+      setResult({ key: requestKey, options: [] });
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    const timer = window.setTimeout(() => {
       void fetchWarrantyOptions(
         productKey,
         buildKey ? { selections: JSON.parse(buildKey) } : null,
-      ).then((list) => {
+      ).then((loadedOptions) => {
         if (!cancelled) {
-          setOptions(list);
-          setLoading(false);
+          setResult({ key: requestKey, options: loadedOptions });
         }
       });
     }, buildKey ? 280 : 0);
+
     return () => {
       cancelled = true;
-      window.clearTimeout(t);
+      window.clearTimeout(timer);
     };
-  }, [productKey, buildKey]);
+  }, [productKey, buildKey, requestKey]);
 
-  return { options, loading };
+  return {
+    options,
+    loading: Boolean(productKey) && !initialized,
+    initialized: Boolean(initialized),
+  };
 }
