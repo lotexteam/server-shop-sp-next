@@ -1211,8 +1211,7 @@ function PlatformPanel({
                   const q = query.trim().toLowerCase();
                   return (
                     p.label.toLowerCase().includes(q) ||
-                    (p.name || "").toLowerCase().includes(q) ||
-                    (p.shortDescription || "").toLowerCase().includes(q)
+                    (p.name || "").toLowerCase().includes(q)
                   );
                 })
               : platforms
@@ -1245,11 +1244,6 @@ function PlatformPanel({
                     </span>
                     <span className="min-w-0 flex-1">
                       <span className="block text-body-sm font-semibold">{p.label}</span>
-                      {p.shortDescription && (
-                        <span className="mt-0.5 block text-caption text-muted-foreground">
-                          {p.shortDescription}
-                        </span>
-                      )}
                     </span>
                     <span className="shrink-0 text-body-sm font-semibold tabular-nums">
                       {p.onRequest

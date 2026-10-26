@@ -165,23 +165,53 @@
 }
 
 .config-print-sheet {
+  box-sizing: border-box;
+  width: min(210mm, calc(100vw - 48px));
+  min-height: 0;
+  aspect-ratio: 210 / 297;
+  padding: clamp(16px, 5vw, 12mm);
+  margin: 0 auto;
   display: none;
   /* Повсеместно доступный шрифт для печатных документов */
   font-family: Arial, "Helvetica Neue", Helvetica, "Liberation Sans", sans-serif;
+}
+
+.config-print-view {
+  box-sizing: border-box;
+  display: flex;
+  min-height: 100vh;
+  justify-content: center;
+  padding: 24px;
+  background: #e5e7eb;
 }
 
 .config-print-view .config-print-sheet {
   display: block;
   color: #111;
   background: #fff;
+  box-shadow: 0 2px 12px rgb(0 0 0 / 14%);
 }
 
 @media print {
   html { scroll-behavior: auto !important; }
   .no-print { display: none !important; }
-  .config-print-view { min-height: 0 !important; padding: 0 !important; }
-  body { background: #fff !important; }
+  .config-print-view {
+    display: block !important;
+    min-height: 0 !important;
+    padding: 0 !important;
+    background: #fff !important;
+  }
+  .config-print-view .config-print-sheet {
+    width: auto;
+    min-height: 0;
+    aspect-ratio: auto;
+    padding: 0;
+    margin: 0;
+    box-shadow: none;
+  }
+  body { margin: 0 !important; background: #fff !important; }
   @page {
+    size: A4;
     margin: 12mm;
   }
 }
