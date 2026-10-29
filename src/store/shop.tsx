@@ -270,7 +270,7 @@ export function ShopProvider({ children }: { children: React.ReactNode }) {
         slug: cfg.slug || p.slug,
         title: cfg.name || p.title,
         price: basePrice == null ? null : basePrice + componentsTotal,
-        onRequest: cfg.onRequest === true || platform?.onRequest === true || basePrice == null || componentsOnRequest,
+        onRequest: platform?.onRequest === true || basePrice == null || componentsOnRequest,
         badges: ["Конфигуратор"],
         specs,
         composition,
