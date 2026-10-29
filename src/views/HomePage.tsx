@@ -100,7 +100,12 @@ export function HomePage({
       .catch(() => setArticles([]));
   }, []);
 
-  const add = (p: Product) => { addToCart(p); push({ variant: "success", title: "Добавлено в корзину", description: p.title, action: { label: "Перейти в корзину", onClick: openCartDrawer } }); };
+  const add = async (p: Product) => {
+    const added = await addToCart(p);
+    push(added
+      ? { variant: "success", title: p.isConfigurable ? "Конфигурация в корзине" : "Добавлено в корзину", description: p.title, action: { label: "Перейти в корзину", onClick: openCartDrawer } }
+      : { variant: "error", title: "Не удалось добавить конфигурацию", description: "Проверьте обязательные компоненты конфигуратора" });
+  };
   const fav = (p: Product) => { toggleFav(p); push({ variant: "info", title: "Избранное обновлено" }); };
 
   return (

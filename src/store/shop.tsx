@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import type { ConfiguratorBuild, Product, SavedConfig } from "@/data/types";
+import { fetchProductConfigurator } from "@/lib/api";
 import { addToCart as metricaAddToCart, removeFromCart as metricaRemoveFromCart, toMetricaProduct } from "@/lib/analytics/metrica";
 
 export const MAX_COMPARE = 4;
@@ -56,7 +57,7 @@ interface ShopState {
       build?: ConfiguratorBuild;
       warranty?: CartWarranty;
     },
-  ) => void;
+  ) => Promise<boolean>;
   removeFromCart: (id: string) => void;
   clearCart: () => void;
   setQty: (id: string, qty: number) => void;
@@ -212,7 +213,7 @@ export function ShopProvider({ children }: { children: React.ReactNode }) {
     [persist],
   );
 
-  const addToCart = (
+  const addToCart = async (
     p: Product,
     qty = 1,
     extras?: {
@@ -221,17 +222,72 @@ export function ShopProvider({ children }: { children: React.ReactNode }) {
       warranty?: CartWarranty;
     },
   ) => {
+    let cartProduct = p;
+    let priceKind = extras?.priceKind ?? "price";
+    let build = extras?.build;
+
+    if (p.isConfigurable && priceKind !== "configurator") {
+      const cfg = await fetchProductConfigurator(p.slug || p.id);
+      if (!cfg) return false;
+
+      const selections: ConfiguratorBuild["selections"] = [];
+      const composition: NonNullable<Product["composition"]> = [];
+      let componentsTotal = 0;
+      let componentsOnRequest = false;
+      for (const slot of cfg.slots) {
+        const option = slot.options.find((candidate) => candidate.isDefault);
+        if (slot.isRequired && !option) return false;
+        if (!option) continue;
+        const qty = Math.min(
+          Math.max(slot.minQty, option.minQty, 1),
+          Math.max(slot.maxQty, slot.minQty, 1),
+          Math.max(option.maxQty, option.minQty, 1),
+        );
+        if (qty < 1) return false;
+        selections.push({ slot_id: slot.id, product_id: option.productId, qty });
+        composition.push({ slot: slot.name, name: option.name, qty });
+        if (option.price != null) componentsTotal += option.price * qty;
+        componentsOnRequest ||= option.onRequest === true || option.price == null;
+      }
+      if (cfg.slots.some((slot) => slot.isRequired && !selections.some((s) => s.slot_id === slot.id))) {
+        return false;
+      }
+
+      const platform = cfg.platforms.find((item) => item.id === cfg.productId);
+      const basePrice = platform?.price ?? cfg.basePrice;
+      const specs = cfg.slots.flatMap((slot) => {
+        const selected = selections.filter((selection) => selection.slot_id === slot.id);
+        return selected.length
+          ? [{ label: slot.name, value: selected.map((selection) => {
+              const option = slot.options.find((candidate) => candidate.productId === selection.product_id)!;
+              return `${option.name} x ${selection.qty}`;
+            }).join(", ") }]
+          : [];
+      });
+      cartProduct = {
+        ...p,
+        id: cfg.productId || p.id,
+        slug: cfg.slug || p.slug,
+        title: cfg.name || p.title,
+        price: basePrice == null ? null : basePrice + componentsTotal,
+        onRequest: cfg.onRequest === true || platform?.onRequest === true || basePrice == null || componentsOnRequest,
+        badges: ["Конфигуратор"],
+        specs,
+        composition,
+      };
+      priceKind = "configurator";
+      build = { selections };
+    }
+
     // Ecommerce event before the state update (fire and forget).
-    metricaAddToCart(toMetricaProduct(p, { qty }));
-    return setCart((s) => {
-      const priceKind = extras?.priceKind ?? "price";
-      const build = extras?.build;
+    metricaAddToCart(toMetricaProduct(cartProduct, { qty }));
+    setCart((s) => {
       const warranty = extras?.warranty;
       const wKey = warranty?.termId ? `:w:${warranty.termId}` : "";
       const lineKey =
         priceKind === "configurator" && build
-          ? `${p.id}:cfg:${JSON.stringify(build.selections)}${wKey}`
-          : `${p.id}${wKey}`;
+          ? `${cartProduct.id}:cfg:${JSON.stringify(build.selections)}${wKey}`
+          : `${cartProduct.id}${wKey}`;
 
       const found = s.find((l) => (l.lineKey ?? l.product.id) === lineKey);
       if (found) {
@@ -242,7 +298,7 @@ export function ShopProvider({ children }: { children: React.ReactNode }) {
       return [
         ...s,
         {
-          product: p,
+          product: cartProduct,
           qty,
           priceKind,
           build,
@@ -251,6 +307,7 @@ export function ShopProvider({ children }: { children: React.ReactNode }) {
         },
       ];
     });
+    return true;
   };
 
   const removeFromCart = (id: string) => {
