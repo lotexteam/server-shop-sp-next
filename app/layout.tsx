@@ -53,7 +53,7 @@ export async function generateMetadata(): Promise<Metadata> {
           },
         }
       : {}),
-    icons: { icon: "/favicon.svg" },
+    icons: { icon: "/header_logo.svg" },
   };
 }
 
