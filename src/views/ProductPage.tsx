@@ -11,9 +11,7 @@ import { StockStatus } from "@/components/ui/stock-status";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Alert } from "@/components/ui/alert";
 import { Table, TableBody, TableRow, TableCell } from "@/components/ui/table";
-import { ProductCard } from "@/components/ProductCard";
 import { ZoomableProductImage } from "@/components/product/ZoomableProductImage";
-import { Section, SectionHeader } from "@/components/common/Section";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ConfigurableProductView } from "@/components/configurator/ConfigurableProductView";
 import { CONDITION_LABEL, CONDITION_TONE } from "@/data/conditions";
@@ -22,7 +20,7 @@ import { VatHint } from "@/components/common/Price";
 import { useShop } from "@/store/shop";
 import { useToast } from "@/components/ui/toast";
 import { useCompareAction } from "@/hooks/useCompareAction";
-import { fetchProduct, fetchProducts, categoryHref } from "@/lib/api";
+import { fetchProduct, categoryHref } from "@/lib/api";
 import type { Category, Product } from "@/data/types";
 import { seedCategories, useCategories } from "@/hooks/useCategories";
 import { NotFoundPage } from "./NotFoundPage";
@@ -45,8 +43,6 @@ export function ProductPage({
   const slug = typeof routeParams.slug === "string" ? routeParams.slug : undefined;
   // SSR-товар: H1/цена/характеристики рендерятся сразу в HTML (без скелета).
   const [product, setProduct] = useState<Product | null | undefined>(initialProduct ?? undefined);
-  const [related, setRelated] = useState<Product[]>([]);
-  const [compatible, setCompatible] = useState<Product[]>([]);
 
   useEffect(() => {
     if (!slug) {
@@ -55,8 +51,7 @@ export function ProductPage({
     }
     let cancelled = false;
     // SSR уже отдал тот же slug: первый экран отрендерен, сам товар не
-    // перезапрашиваем (лишний API-запрос и мигание), но related/compatible
-    // и ecommerce-метрику догружаем как раньше.
+    // перезапрашиваем (лишний API-запрос и мигание).
     const ssrProduct =
       initialProduct != null && initialProduct.slug === slug ? initialProduct : null;
     // Soft platform switch: keep current configurable product shell so the page
@@ -74,32 +69,6 @@ export function ProductPage({
       // Ecommerce: product detail view.
       if (p) metricaDetail(toMetricaProduct(p));
       if (!p) return;
-      try {
-        const primaryCategory = p.categorySlugs?.[0] || p.category || undefined;
-        const res = await fetchProducts({
-          per_page: 5,
-          ...(primaryCategory ? { category_id: primaryCategory } : {}),
-        });
-        if (cancelled) return;
-        // Платформы — только из API configurator.platforms (admin merge).
-        setRelated(
-          res.items
-            .filter(
-              (x) =>
-                x.id !== p.id &&
-                !x.slug.startsWith("cfg-opt-") &&
-                !x.isConfigurable,
-            )
-            .slice(0, 4),
-        );
-        setCompatible(
-          res.items
-            .filter((x) => x.id !== p.id && !x.slug.startsWith("cfg-opt-"))
-            .slice(0, 4),
-        );
-      } catch {
-        /* ignore */
-      }
     })();
     return () => {
       cancelled = true;
@@ -130,17 +99,13 @@ export function ProductPage({
 
   if (!product) return <NotFoundPage />;
 
-  return <ReadyProductPage product={product} related={related} compatible={compatible} />;
+  return <ReadyProductPage product={product} />;
 }
 
 function ReadyProductPage({
   product,
-  related,
-  compatible,
 }: {
   product: Product;
-  related: Product[];
-  compatible: Product[];
 }) {
   const router = useRouter();
   const [qty, setQty] = useState(1);
@@ -520,27 +485,6 @@ function ReadyProductPage({
         </Tabs>
       </div>
 
-      {compatible.length > 0 && (
-        <Section className="!px-0">
-          <SectionHeader eyebrow="Дополните" title="Совместимые товары" />
-          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
-            {compatible.map((p) => (
-              <ProductCard key={p.id} product={p} />
-            ))}
-          </div>
-        </Section>
-      )}
-
-      {related.length > 0 && (
-        <Section className="!px-0 !pt-0">
-          <SectionHeader eyebrow="Похожее" title="Похожие товары" />
-          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
-            {related.map((p) => (
-              <ProductCard key={p.id} product={p} />
-            ))}
-          </div>
-        </Section>
-      )}
     </div>
   );
 }
