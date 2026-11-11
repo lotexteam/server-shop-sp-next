@@ -617,36 +617,57 @@ export function ConfigurableProductView({ product }: Props) {
     }
     return (
       <>
-        {/* Панель действий: фиксирована справа сверху и не участвует в печати.
-            Кнопки на токенах темы, поэтому наследуют палитру каждой витрины. */}
-        <div className="no-print fixed right-4 top-4 z-50 flex flex-wrap items-center justify-end gap-2 sm:right-6 sm:top-6">
-          <button
-            type="button"
-            onClick={() => void downloadPdf()}
-            disabled={pdfBusy}
-            className="inline-flex h-10 items-center gap-2 rounded-md border border-border bg-card px-4 text-body-sm font-semibold text-foreground shadow-sm transition-colors hover:bg-secondary disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {pdfBusy ? <Loader2 className="size-4 animate-spin" /> : <Download className="size-4" />}
-            Скачать PDF
-          </button>
-          <button
-            type="button"
-            onClick={() => window.print()}
-            className="inline-flex h-10 items-center gap-2 rounded-md bg-primary px-4 text-body-sm font-semibold text-primary-foreground shadow-sm transition-opacity hover:opacity-90"
-          >
-            <Printer className="size-4" />
-            Распечатать
-          </button>
-        </div>
-        <main className="config-print-view min-h-screen bg-white p-6 pt-20 text-black sm:pt-6">
-          <ConfigPrintSheet
-            platformName={displayTitle}
-            rows={printRows}
-            qty={qty}
-            unitTotal={state.total + warrantyExtra}
-            warrantyName={warrantyChoice?.name}
-            warrantySum={warrantyExtra}
-          />
+        <main className="config-print-view min-h-screen bg-white p-6 text-black">
+          <div className="config-print-stage">
+            {/* Панель действий справа от листа: сверху и снизу. Кнопки на
+                токенах темы, поэтому наследуют палитуру каждой витрины. */}
+            <div className="config-print-actions config-print-actions--top no-print">
+              <button
+                type="button"
+                onClick={() => void downloadPdf()}
+                disabled={pdfBusy}
+                className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-border bg-card px-4 text-body-sm font-semibold text-foreground shadow-sm transition-colors hover:bg-secondary disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {pdfBusy ? <Loader2 className="size-4 animate-spin" /> : <Download className="size-4" />}
+                Скачать PDF
+              </button>
+              <button
+                type="button"
+                onClick={() => window.print()}
+                className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-primary px-4 text-body-sm font-semibold text-primary-foreground shadow-sm transition-opacity hover:opacity-90"
+              >
+                <Printer className="size-4" />
+                Распечатать
+              </button>
+            </div>
+            <ConfigPrintSheet
+              platformName={displayTitle}
+              rows={printRows}
+              qty={qty}
+              unitTotal={state.total + warrantyExtra}
+              warrantyName={warrantyChoice?.name}
+              warrantySum={warrantyExtra}
+            />
+            <div className="config-print-actions config-print-actions--bottom no-print">
+              <button
+                type="button"
+                onClick={() => void downloadPdf()}
+                disabled={pdfBusy}
+                className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-border bg-card px-4 text-body-sm font-semibold text-foreground shadow-sm transition-colors hover:bg-secondary disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {pdfBusy ? <Loader2 className="size-4 animate-spin" /> : <Download className="size-4" />}
+                Скачать PDF
+              </button>
+              <button
+                type="button"
+                onClick={() => window.print()}
+                className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-primary px-4 text-body-sm font-semibold text-primary-foreground shadow-sm transition-opacity hover:opacity-90"
+              >
+                <Printer className="size-4" />
+                Распечатать
+              </button>
+            </div>
+          </div>
         </main>
       </>
     );

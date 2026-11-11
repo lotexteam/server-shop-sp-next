@@ -192,6 +192,44 @@
   box-shadow: 0 2px 12px rgb(0 0 0 / 14%);
 }
 
+/*
+ * Панель действий на странице печати: стоит рядом с листом, а не поверх него —
+ * справа от листа сверху и снизу. Привязана к самому листу (абсолютное
+ * позиционирование внутри .config-print-stage), поэтому при прокрутке
+ * остаётся возле документа, а не уезжает к футеру.
+ */
+.config-print-stage {
+  position: relative;
+  width: fit-content;
+  max-width: 100%;
+  margin: 0 auto;
+}
+
+.config-print-actions {
+  position: absolute;
+  left: calc(100% + 20px);
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
+  width: max-content;
+}
+
+.config-print-actions--top { top: 0; }
+.config-print-actions--bottom { bottom: 0; }
+
+/* Узкий экран: листу не хватает места справа — панель уходит под/над листом. */
+@media (max-width: 1180px) {
+  .config-print-actions {
+    position: static;
+    left: auto;
+    flex-direction: row;
+    justify-content: flex-end;
+    margin: 0 0 12px;
+  }
+  .config-print-actions--bottom { margin: 12px 0 0; }
+}
+
 @media print {
   html { scroll-behavior: auto !important; }
   .no-print { display: none !important; }
