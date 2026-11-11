@@ -2305,6 +2305,65 @@ export async function fetchProductConfigurator(
   }
 }
 
+/**
+ * Серверный PDF конфигурации (официальный документ с реквизитами).
+ * Возвращает готовый файл: браузер не умеет «печать в PDF» без диалога,
+ * поэтому кнопка «Скачать PDF» берёт документ с бэка.
+ */
+export async function downloadConfiguratorPdf(
+  idOrSlug: string,
+  payload: {
+    selections: Array<{ slot_id: string; product_id: string; qty: number }>;
+    qty: number;
+    warrantyTermId?: string | null;
+    warrantyPackageId?: string | null;
+  },
+): Promise<void> {
+  const headers = new Headers({ Accept: "application/pdf" });
+  const token = getAuthToken();
+  if (token) headers.set("Authorization", `Bearer ${token}`);
+  const cartToken = getCartToken();
+  if (cartToken) headers.set("X-Cart-Token", cartToken);
+  headers.set("Content-Type", "application/json");
+
+  const body: Record<string, unknown> = {
+    selections: payload.selections,
+    qty: payload.qty,
+  };
+  if (payload.warrantyTermId) {
+    body.warranty_term_id = payload.warrantyTermId;
+    body.warranty_package_id = payload.warrantyPackageId ?? null;
+  }
+
+  const res = await fetch(
+    `${API_BASE}/products/${encodeURIComponent(idOrSlug)}/configurator/pdf`,
+    { method: "POST", headers, body: JSON.stringify(body) },
+  );
+
+  if (!res.ok) {
+    // Бэкенд отвечает JSON-ошибкой (422 — невалидная сборка/гарантия).
+    let message = "Не удалось сформировать PDF";
+    try {
+      const data = (await res.json()) as { message?: string; errors?: string[] };
+      if (data?.message) message = data.message;
+      if (data?.errors?.length) message = `${message}: ${data.errors.join(", ")}`;
+    } catch {
+      /* тело не JSON — оставляем общий текст */
+    }
+    throw new StorefrontApiError(message, res.status);
+  }
+
+  const blob = await res.blob();
+  const href = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  const name =
+    (idOrSlug || "configuration").replace(/[^\w.-]+/g, "_").slice(0, 60) || "configuration";
+  a.href = href;
+  a.download = `config-${name}.pdf`;
+  a.click();
+  URL.revokeObjectURL(href);
+}
+
 export async function validateProductBuild(
   idOrSlug: string,
   selections: Array<{ slot_id: string; product_id: string; qty: number }>,

@@ -5,7 +5,7 @@
  * Не отдельная «страница конфигуратора» — layout ProductPage + слоты + sticky состав.
  * Платформы = admin-linked merge (API platforms), UI как у атрибутов-слотов.
  */
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import ReactMarkdown from "react-markdown";
@@ -25,6 +25,7 @@ import {
   ChevronDown,
   Loader2,
   Share2,
+  Download,
   Printer,
 } from "lucide-react";
 import { Breadcrumbs } from "@/components/ui/breadcrumbs";
@@ -38,7 +39,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableRow } from "@/components/ui/table";
 
 import { formatPrice, cn } from "@/lib/utils";
-import { categoryHref } from "@/lib/api";
+import { categoryHref, downloadConfiguratorPdf } from "@/lib/api";
 import { VatHint } from "@/components/common/Price";
 import { ConfigPrintSheet, type PrintRow } from "@/components/configurator/ConfigPrintSheet";
 import { useShop } from "@/store/shop";
@@ -211,7 +212,7 @@ export function ConfigurableProductView({ product }: Props) {
   const [saving, setSaving] = useState(false);
   const [sharing, setSharing] = useState(false);
   const [printing, setPrinting] = useState(false);
-  const printStartedRef = useRef(false);
+  const [pdfBusy, setPdfBusy] = useState(false);
   const { push } = useToast();
 
   /** Platforms from admin API only (not «all servers in category»). */
@@ -364,33 +365,34 @@ export function ConfigurableProductView({ product }: Props) {
     window.setTimeout(() => setPrinting(false), 1500);
   };
 
+  // Печать больше не запускается сама: страница сначала показывает документ,
+  // а печатает пользователь кнопкой. Здесь только заголовок вкладки — он же
+  // становится именем файла при «Сохранить как PDF» из диалога печати.
   useEffect(() => {
-    if (
-      !printMode ||
-      !printBuildReady ||
-      printStartedRef.current ||
-      state.loading ||
-      warrantyLoading ||
-      !warrantyInitialized ||
-      !state.cfg ||
-      state.incomplete
-    ) return;
-    const timer = window.setTimeout(() => {
-      printStartedRef.current = true;
-      document.title = `Конфигурация ${displayTitle}`;
-      window.print();
-    }, 120);
-    return () => window.clearTimeout(timer);
-  }, [
-    printMode,
-    printBuildReady,
-    state.loading,
-    warrantyLoading,
-    warrantyInitialized,
-    state.cfg,
-    state.incomplete,
-    displayTitle,
-  ]);
+    if (!printMode || !printBuildReady || !state.cfg) return;
+    document.title = `Конфигурация ${displayTitle}`;
+  }, [printMode, printBuildReady, state.cfg, displayTitle]);
+
+  const downloadPdf = async () => {
+    if (!state.cfg || state.incomplete || pdfBusy) return;
+    setPdfBusy(true);
+    try {
+      await downloadConfiguratorPdf(cartSlug, {
+        selections: state.buildSelections,
+        qty,
+        warrantyTermId: warrantyChoice?.termId ?? null,
+        warrantyPackageId: warrantyChoice?.packageId ?? null,
+      });
+    } catch (e) {
+      push({
+        variant: "error",
+        title: "Не удалось скачать PDF",
+        description: e instanceof Error ? e.message : undefined,
+      });
+    } finally {
+      setPdfBusy(false);
+    }
+  };
 
 
   useEffect(() => {
@@ -614,16 +616,39 @@ export function ConfigurableProductView({ product }: Props) {
       );
     }
     return (
-      <main className="config-print-view min-h-screen bg-white p-6 text-black">
-        <ConfigPrintSheet
-          platformName={displayTitle}
-          rows={printRows}
-          qty={qty}
-          unitTotal={state.total + warrantyExtra}
-          warrantyName={warrantyChoice?.name}
-          warrantySum={warrantyExtra}
-        />
-      </main>
+      <>
+        {/* Панель действий: фиксирована справа сверху и не участвует в печати.
+            Кнопки на токенах темы, поэтому наследуют палитру каждой витрины. */}
+        <div className="no-print fixed right-4 top-4 z-50 flex flex-wrap items-center justify-end gap-2 sm:right-6 sm:top-6">
+          <button
+            type="button"
+            onClick={() => void downloadPdf()}
+            disabled={pdfBusy}
+            className="inline-flex h-10 items-center gap-2 rounded-md border border-border bg-card px-4 text-body-sm font-semibold text-foreground shadow-sm transition-colors hover:bg-secondary disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {pdfBusy ? <Loader2 className="size-4 animate-spin" /> : <Download className="size-4" />}
+            Скачать PDF
+          </button>
+          <button
+            type="button"
+            onClick={() => window.print()}
+            className="inline-flex h-10 items-center gap-2 rounded-md bg-primary px-4 text-body-sm font-semibold text-primary-foreground shadow-sm transition-opacity hover:opacity-90"
+          >
+            <Printer className="size-4" />
+            Распечатать
+          </button>
+        </div>
+        <main className="config-print-view min-h-screen bg-white p-6 pt-20 text-black sm:pt-6">
+          <ConfigPrintSheet
+            platformName={displayTitle}
+            rows={printRows}
+            qty={qty}
+            unitTotal={state.total + warrantyExtra}
+            warrantyName={warrantyChoice?.name}
+            warrantySum={warrantyExtra}
+          />
+        </main>
+      </>
     );
   }
 
