@@ -1351,11 +1351,11 @@ function SlotPanel({
 
   const q = query.trim().toLowerCase();
   const visibleOptions = slot.options.filter((opt) => {
-    if (selectedIds.has(opt.productId)) return true;
     if (q) {
       const hay = `${opt.name} ${opt.sku || ""}`.toLowerCase();
       if (!hay.includes(q)) return false;
     }
+    if (selectedIds.has(opt.productId)) return true;
     for (const [code, values] of Object.entries(facet)) {
       if (!values.length) continue;
       const tokens = opt.filterValues?.[code] || [];
@@ -1644,15 +1644,7 @@ function SlotPanel({
                 Нет доступных опций
               </li>
             )}
-            {slot.options.length > 0 &&
-              query.trim() &&
-              !slot.options.some((opt) => {
-                const q = query.trim().toLowerCase();
-                return (
-                  opt.name.toLowerCase().includes(q) ||
-                  (opt.sku || "").toLowerCase().includes(q)
-                );
-              }) && (
+            {slot.options.length > 0 && query.trim() && visibleOptions.length === 0 && (
               <li className="px-5 py-4 text-body-sm text-muted-foreground">
                 Ничего не найдено
               </li>
