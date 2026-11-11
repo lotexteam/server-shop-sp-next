@@ -1,6 +1,12 @@
 import type { Product, Category } from "@/data/types";
 import { loadCategories } from "@/hooks/useCategories";
-import { fetchProducts, searchProductsApi } from "@/lib/api";
+import {
+  searchProductsApi,
+  searchSuggestApi,
+  type SuggestionProduct,
+} from "@/lib/api";
+
+export type { SuggestionProduct };
 
 export type SearchHit =
   | { kind: "product"; product: Product; score: number }
@@ -128,36 +134,178 @@ export function searchCatalogIn(
 }
 
 /** Async search over API-backed catalog cache. */
-export async function searchCatalog(
-  query: string,
-  limits = { products: 6, categories: 4 },
-): Promise<SearchHit[]> {
+export type CategoryHit = { category: Category; score: number };
+
+export type SuggestionResult = {
+  categories: CategoryHit[];
+  products: SuggestionProduct[];
+  /** Поправленный запрос («возможно, вы имели в виду»), если сервер его вернул. */
+  corrected: string | null;
+};
+
+/**
+ * Недавние запросы пользователя — только на клиенте (localStorage), без
+ * аналитики и без отправки содержимого на сервер. Храним последние 5.
+ */
+const RECENT_KEY = "storefront:recent-searches";
+const RECENT_LIMIT = 5;
+
+export function loadRecentSearches(): string[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = window.localStorage.getItem(RECENT_KEY);
+    const parsed = raw ? (JSON.parse(raw) as unknown) : [];
+    return Array.isArray(parsed)
+      ? parsed.filter((v): v is string => typeof v === "string" && v.trim().length > 0).slice(0, RECENT_LIMIT)
+      : [];
+  } catch {
+    return [];
+  }
+}
+
+export function rememberRecentSearch(query: string): void {
   const q = query.trim();
-  const [categories, api] = await Promise.all([
-    loadCategories(),
-    q
-      ? (async () => {
-          try {
-            // Основной путь: серверный поиск на бэке (GET /search)
-            return { items: await searchProductsApi(q), ranked: true };
-          } catch {
-            // Фолбэк: SQL-поиск по токенам
-            const fallback = await fetchProducts({ q, per_page: 50 }).catch(
-              () => ({ items: [] as Product[], total: 0, page: 1, lastPage: 1 }),
-            );
-            return { ...fallback, ranked: false };
-          }
-        })()
-      : Promise.resolve({ items: [] as Product[], ranked: false }),
+  if (typeof window === "undefined" || q.length < MIN_SEARCH_CHARS) return;
+  try {
+    const next = [q, ...loadRecentSearches().filter((v) => v.toLowerCase() !== q.toLowerCase())].slice(
+      0,
+      RECENT_LIMIT,
+    );
+    window.localStorage.setItem(RECENT_KEY, JSON.stringify(next));
+  } catch {
+    /* приватный режим — не критично */
+  }
+}
+
+/** Минимум символов: один символ даёт мусор и лишние запросы. */
+export const MIN_SEARCH_CHARS = 2;
+
+/** Категории ищутся локально по уже загруженному дереву — без запроса к API. */
+export function matchCategories(
+  query: string,
+  categories: Category[],
+  limit = 4,
+): CategoryHit[] {
+  const toks = tokens(query);
+  if (!toks.length) return [];
+
+  const hits: CategoryHit[] = [];
+  for (const category of categories) {
+    const score = scoreFields(
+      [category.title, category.description ?? "", category.slug],
+      toks,
+    );
+    if (score > 0) hits.push({ category, score });
+  }
+
+  return hits
+    .sort(
+      (a, b) =>
+        (a.category.searchRank ?? Number.MAX_SAFE_INTEGER) -
+          (b.category.searchRank ?? Number.MAX_SAFE_INTEGER) ||
+        b.score - a.score ||
+        a.category.title.localeCompare(b.category.title),
+    )
+    .slice(0, limit);
+}
+
+/**
+ * Подсказки для автокомплита: товары — с сервера (лёгкий эндпоинт /search/suggest),
+ * категории — из уже загруженного дерева. Запрос отменяется через AbortSignal.
+ */
+export async function searchSuggestions(
+  query: string,
+  limits = { products: 8, categories: 4 },
+  signal?: AbortSignal,
+): Promise<SuggestionResult> {
+  const q = query.trim();
+  if (q.length < MIN_SEARCH_CHARS) return { categories: [], products: [], corrected: null };
+
+  const [categories, products] = await Promise.all([
+    loadCategories().catch(() => [] as Category[]),
+    suggestProducts(q, limits.products, signal),
   ]);
-  return searchCatalogIn(
-    query,
-    api.items,
-    categories,
-    limits,
-    new Set(api.items.map((p) => p.id)),
-    api.ranked,
-  );
+
+  return {
+    categories: matchCategories(q, categories, limits.categories),
+    products,
+    corrected: null,
+  };
+}
+
+async function suggestProducts(
+  q: string,
+  limit: number,
+  signal?: AbortSignal,
+): Promise<SuggestionProduct[]> {
+  try {
+    return await searchSuggestApi(q, limit, signal);
+  } catch (error) {
+    // Отменённый запрос — это не ошибка, и фолбэк тоже не нужен.
+    if (signal?.aborted) throw error;
+    // API без /search/suggest (старый релиз): работаем через полный поиск.
+    try {
+      const products = await searchProductsApi(q);
+      return products.slice(0, limit).map(toSuggestion);
+    } catch {
+      return [];
+    }
+  }
+}
+
+function toSuggestion(product: Product): SuggestionProduct {
+  return {
+    id: product.id,
+    slug: product.slug,
+    urlPath: `/product/${product.slug}`,
+    title: product.title,
+    sku: product.sku ?? null,
+    brand: product.brand ?? null,
+    categoryTitle: product.categoryTitle ?? null,
+    image: product.image ?? null,
+    price: product.price ?? null,
+    onRequest: product.onRequest === true,
+  };
+}
+
+export type HighlightSegment = { text: string; match: boolean };
+
+/** Разбивает строку на подсвеченные/обычные куски по токенам запроса. */
+export function highlightSegments(text: string, query: string): HighlightSegment[] {
+  const needles = tokens(query).filter((t) => t.length >= 2);
+  if (!text || !needles.length) return [{ text, match: false }];
+
+  const haystack = text.toLowerCase();
+  const ranges: Array<[number, number]> = [];
+  for (const needle of needles) {
+    let from = 0;
+    while (from < haystack.length) {
+      const at = haystack.indexOf(needle, from);
+      if (at === -1) break;
+      ranges.push([at, at + needle.length]);
+      from = at + needle.length;
+    }
+  }
+  if (!ranges.length) return [{ text, match: false }];
+
+  ranges.sort((a, b) => a[0] - b[0]);
+  const merged: Array<[number, number]> = [];
+  for (const range of ranges) {
+    const last = merged[merged.length - 1];
+    if (last && range[0] <= last[1]) last[1] = Math.max(last[1], range[1]);
+    else merged.push([range[0], range[1]]);
+  }
+
+  const out: HighlightSegment[] = [];
+  let cursor = 0;
+  for (const [start, end] of merged) {
+    if (start > cursor) out.push({ text: text.slice(cursor, start), match: false });
+    out.push({ text: text.slice(start, end), match: true });
+    cursor = end;
+  }
+  if (cursor < text.length) out.push({ text: text.slice(cursor), match: false });
+
+  return out;
 }
 
 export function filterProductsByQuery(

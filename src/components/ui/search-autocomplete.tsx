@@ -5,7 +5,15 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Search as SearchIcon, X, Package, FolderOpen, ArrowRight, Loader2 } from "lucide-react";
 import { cn, formatPrice } from "@/lib/utils";
-import { searchCatalog, type SearchHit } from "@/lib/search";
+import {
+  MIN_SEARCH_CHARS,
+  highlightSegments,
+  loadRecentSearches,
+  rememberRecentSearch,
+  searchSuggestions,
+  type CategoryHit,
+  type SuggestionProduct,
+} from "@/lib/search";
 import { categoryHref } from "@/lib/api";
 
 type Props = {
@@ -20,8 +28,29 @@ type Props = {
   categorySlug?: string;
 };
 
-const DEBOUNCE_MS = 220;
-const MIN_CHARS = 1;
+/**
+ * Debounce держим коротким: подсказки дешёвые (лёгкий ответ + кэш на бэке),
+ * а ощущение «печатаю — сразу вижу» важнее экономии пары запросов.
+ */
+const DEBOUNCE_MS = 130;
+
+function Highlighted({ text, query }: { text: string; query: string }) {
+  const segments = useMemo(() => highlightSegments(text, query), [text, query]);
+
+  return (
+    <>
+      {segments.map((segment, index) =>
+        segment.match ? (
+          <mark key={index} className="rounded-sm bg-primary/15 px-0.5 text-foreground">
+            {segment.text}
+          </mark>
+        ) : (
+          <span key={index}>{segment.text}</span>
+        )
+      )}
+    </>
+  );
+}
 
 export function SearchAutocomplete({
   value,
@@ -41,7 +70,8 @@ export function SearchAutocomplete({
   const [activeIndex, setActiveIndex] = useState(-1);
   const [debounced, setDebounced] = useState(value);
   const [pending, setPending] = useState(false);
-  const [hits, setHits] = useState<SearchHit[]>([]);
+  const [categoryHits, setCategoryHits] = useState<CategoryHit[]>([]);
+  const [productHits, setProductHits] = useState<SuggestionProduct[]>([]);
 
   useEffect(() => {
     setPending(true);
@@ -52,47 +82,65 @@ export function SearchAutocomplete({
   }, [value]);
 
   useEffect(() => {
-    if (debounced.trim().length < MIN_CHARS) {
-      setHits([]);
+    const query = debounced.trim();
+    if (query.length < MIN_SEARCH_CHARS) {
+      setCategoryHits([]);
+      setProductHits([]);
       setPending(false);
       return;
     }
-    let cancelled = false;
+
+    // Отменяем предыдущий запрос: иначе «с» из «сетевой» продолжает занимать
+    // лимит и может прийти позже актуального ответа.
+    const controller = new AbortController();
     setPending(true);
-    void searchCatalog(debounced).then((res) => {
-      if (!cancelled) {
-        setHits(res);
+
+    void searchSuggestions(query, { products: 8, categories: 4 }, controller.signal)
+      .then((result) => {
+        if (controller.signal.aborted) return;
+        setCategoryHits(result.categories);
+        setProductHits(result.products);
         setPending(false);
-      }
-    });
-    return () => {
-      cancelled = true;
-    };
+      })
+      .catch(() => {
+        if (controller.signal.aborted) return;
+        setCategoryHits([]);
+        setProductHits([]);
+        setPending(false);
+      });
+
+    return () => controller.abort();
   }, [debounced]);
 
-  const categoryHits = hits.filter((h) => h.kind === "category");
-  const productHits = hits.filter((h) => h.kind === "product");
+  // Пустое поле и фокус: подсказываем недавние запросы пользователя.
+  const [recent, setRecent] = useState<string[]>([]);
+  useEffect(() => {
+    if (open && value.trim() === "") setRecent(loadRecentSearches());
+  }, [open, value]);
+
+  const showRecent = open && value.trim() === "" && recent.length > 0;
 
   /** Flat list for keyboard navigation: categories → products → "all results" */
   const flatItems = useMemo(() => {
     const items: Array<
-      | { type: "category"; hit: Extract<SearchHit, { kind: "category" }> }
-      | { type: "product"; hit: Extract<SearchHit, { kind: "product" }> }
+      | { type: "category"; hit: CategoryHit }
+      | { type: "product"; hit: SuggestionProduct }
       | { type: "all"; query: string }
     > = [];
     for (const hit of categoryHits) items.push({ type: "category", hit });
     for (const hit of productHits) items.push({ type: "product", hit });
-    if (debounced.trim().length >= MIN_CHARS) {
+    if (debounced.trim().length >= MIN_SEARCH_CHARS) {
       items.push({ type: "all", query: debounced.trim() });
     }
     return items;
   }, [categoryHits, productHits, debounced]);
 
-  const showPanel = open && value.trim().length >= MIN_CHARS;
+  const showPanel = open && value.trim().length >= MIN_SEARCH_CHARS;
+  const query = debounced.trim();
 
-  const catalogSearchPath = useCallback((query: string) => {
+  const catalogSearchPath = useCallback((q: string) => {
     const base = categorySlug ? `/catalog/${encodeURIComponent(categorySlug)}` : "/catalog";
-    return `${base}?q=${encodeURIComponent(query)}`;
+    return `${base}?q=${encodeURIComponent(q)}`;
   }, [categorySlug]);
 
   useEffect(() => {
@@ -121,7 +169,7 @@ export function SearchAutocomplete({
     (index: number) => {
       const item = flatItems[index];
       if (!item) return;
-      if (item.type === "product") go(`/product/${item.hit.product.slug}`);
+      if (item.type === "product") go(`/product/${item.hit.slug}`);
       else if (item.type === "category") go(categoryHref(item.hit.category.slug));
       else go(catalogSearchPath(item.query));
     },
@@ -135,8 +183,11 @@ export function SearchAutocomplete({
       selectIndex(activeIndex);
       return;
     }
-    if (q) go(catalogSearchPath(q));
-    else go("/catalog");
+    // Уходим в каталог с запросом — запоминаем его как недавний.
+    if (q) {
+      rememberRecentSearch(q);
+      go(catalogSearchPath(q));
+    } else go("/catalog");
   };
 
   const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -210,17 +261,40 @@ export function SearchAutocomplete({
         )}
       </form>
 
+      {showRecent && (
+        <div className="absolute left-0 right-0 top-[calc(100%+0.35rem)] z-50 overflow-hidden rounded-lg border border-border bg-popover py-2 shadow-elevated">
+          <p className="px-3 py-1.5 text-caption font-semibold uppercase tracking-wide text-muted-foreground">
+            Недавние запросы
+          </p>
+          {recent.map((query) => (
+            <button
+              key={query}
+              type="button"
+              onClick={() => {
+                onChange(query);
+                rememberRecentSearch(query);
+                go(catalogSearchPath(query));
+              }}
+              className="flex w-full items-center gap-2 px-3 py-2 text-left text-body-sm text-foreground transition-colors hover:bg-secondary/70"
+            >
+              <SearchIcon className="size-3.5 shrink-0 text-muted-foreground" />
+              <span className="truncate">{query}</span>
+            </button>
+          ))}
+        </div>
+      )}
+
       {showPanel && (
         <div
           id={listId}
           role="listbox"
           className="absolute left-0 right-0 top-[calc(100%+0.35rem)] z-50 overflow-hidden rounded-lg border border-border bg-popover shadow-elevated"
         >
-          {pending && hits.length === 0 ? (
+          {pending && categoryHits.length === 0 && productHits.length === 0 ? (
             <div className="flex items-center gap-2 px-4 py-6 text-body-sm text-muted-foreground">
               <Loader2 className="size-4 animate-spin" /> Ищем…
             </div>
-          ) : hits.length === 0 ? (
+          ) : categoryHits.length === 0 && productHits.length === 0 ? (
             <div className="px-4 py-6 text-center">
               <p className="text-body-sm font-medium text-foreground">Ничего не найдено</p>
               <p className="mt-1 text-caption text-muted-foreground">
@@ -242,7 +316,6 @@ export function SearchAutocomplete({
                     Категории
                   </p>
                   {categoryHits.map((hit) => {
-                    if (hit.kind !== "category") return null;
                     const idx = flatItems.findIndex(
                       (it) => it.type === "category" && it.hit.category.id === hit.category.id
                     );
@@ -253,7 +326,7 @@ export function SearchAutocomplete({
                         id={`${listId}-opt-${idx}`}
                         role="option"
                         aria-selected={active}
-                         href={categoryHref(hit.category.slug)}
+                        href={categoryHref(hit.category.slug)}
                         onClick={() => {
                           setOpen(false);
                           onNavigate?.();
@@ -269,7 +342,7 @@ export function SearchAutocomplete({
                         </span>
                         <span className="min-w-0 flex-1">
                           <span className="block truncate text-body-sm font-semibold text-foreground">
-                            {hit.category.title}
+                            <Highlighted text={hit.category.title} query={query} />
                           </span>
                           <span className="block truncate text-caption text-muted-foreground">
                             {hit.category.count} товаров
@@ -288,18 +361,17 @@ export function SearchAutocomplete({
                     Товары
                   </p>
                   {productHits.map((hit) => {
-                    if (hit.kind !== "product") return null;
                     const idx = flatItems.findIndex(
-                      (it) => it.type === "product" && it.hit.product.id === hit.product.id
+                      (it) => it.type === "product" && it.hit.id === hit.id
                     );
                     const active = idx === activeIndex;
                     return (
                       <Link
-                        key={hit.product.id}
+                        key={hit.id}
                         id={`${listId}-opt-${idx}`}
                         role="option"
                         aria-selected={active}
-                         href={`/product/${hit.product.slug}`}
+                        href={hit.urlPath}
                         onClick={() => {
                           setOpen(false);
                           onNavigate?.();
@@ -311,21 +383,23 @@ export function SearchAutocomplete({
                         )}
                       >
                         <span className="relative size-11 shrink-0 overflow-hidden rounded-md border border-border bg-secondary">
-                          <img
-                            src={hit.product.image}
-                            alt=""
-                            className="size-full object-cover"
-                            loading="lazy"
-                          />
+                          {hit.image ? (
+                            <img
+                              src={hit.image}
+                              alt=""
+                              className="size-full object-cover"
+                              loading="lazy"
+                            />
+                          ) : null}
                         </span>
                         <span className="min-w-0 flex-1">
                           <span className="block truncate text-body-sm font-semibold text-foreground">
-                            {hit.product.title}
+                            <Highlighted text={hit.title} query={query} />
                           </span>
                           {(() => {
                             const bits = [
-                              hit.product.brand?.trim() || "",
-                              hit.product.categoryTitle?.trim() || "",
+                              hit.brand?.trim() || "",
+                              hit.categoryTitle?.trim() || "",
                             ].filter(Boolean);
                             if (!bits.length) return null;
                             return (
@@ -341,9 +415,9 @@ export function SearchAutocomplete({
                           })()}
                         </span>
                         <span className="shrink-0 text-body-sm font-semibold text-foreground">
-                          {hit.product.onRequest || hit.product.price == null
+                          {hit.onRequest || hit.price == null
                             ? "Под заказ"
-                            : formatPrice(hit.product.price)}
+                            : formatPrice(hit.price)}
                         </span>
                       </Link>
                     );

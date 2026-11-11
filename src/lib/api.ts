@@ -491,6 +491,81 @@ export async function searchProductsApi(q: string): Promise<Product[]> {
   return (res.data || []).map(mapApiProduct);
 }
 
+/** Популярные поисковые запросы (GET /search/popular) — для пустого автокомплита. */
+export async function fetchPopularSearches(limit = 8): Promise<string[]> {
+  try {
+    const res = await request<ApiItem<Array<{ query: string; count: number }>>>(
+      `/search/popular?limit=${limit}`,
+    );
+    return (res.data || []).map((item) => item.query).filter(Boolean);
+  } catch {
+    // Вспомогательные данные: без них автокомплит просто пуст.
+    return [];
+  }
+}
+
+/** Компактная подсказка автокомплита (GET /search/suggest). */
+export type SuggestionProduct = {
+  id: string;
+  slug: string;
+  urlPath: string;
+  title: string;
+  sku: string | null;
+  brand: string | null;
+  categoryTitle: string | null;
+  image: string | null;
+  price: number | null;
+  onRequest: boolean;
+};
+
+type ApiSearchSuggestion = {
+  id: string;
+  sku: string | null;
+  slug: string;
+  url_path: string;
+  name: string;
+  short_name: string | null;
+  brand: { id: string; name: string } | null;
+  category: { id: string; name: string; slug: string } | null;
+  image: string | null;
+  price: {
+    amount: string;
+    currency: string;
+    display: number | null;
+    compare_at_display: number | null;
+    is_on_request: boolean;
+    on_sale: boolean;
+  };
+};
+
+/**
+ * Подсказки для автокомплита: лёгкий ответ (id/название/цена/картинка),
+ * отдельный лимит на бэке и короткий серверный кэш. Ответ кэшируется
+ * на бэке 30 с, поэтому частый ввод по буквам дешёвый.
+ */
+export async function searchSuggestApi(
+  q: string,
+  limit = 8,
+  signal?: AbortSignal,
+): Promise<SuggestionProduct[]> {
+  const res = await request<ApiItem<ApiSearchSuggestion[]>>(
+    `/search/suggest?q=${encodeURIComponent(q)}&limit=${limit}`,
+    { signal },
+  );
+  return (res.data || []).map((item) => ({
+    id: item.id,
+    slug: item.slug,
+    urlPath: item.url_path,
+    title: item.name,
+    sku: item.sku ?? null,
+    brand: item.brand?.name ?? null,
+    categoryTitle: item.category?.name ?? null,
+    image: item.image ?? null,
+    price: item.price?.display ?? null,
+    onRequest: item.price?.is_on_request === true,
+  }));
+}
+
 export async function fetchProducts(params?: {
   page?: number;
   per_page?: number;
