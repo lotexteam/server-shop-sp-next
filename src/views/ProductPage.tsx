@@ -12,6 +12,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Alert } from "@/components/ui/alert";
 import { Table, TableBody, TableRow, TableCell } from "@/components/ui/table";
 import { ZoomableProductImage } from "@/components/product/ZoomableProductImage";
+import { RichText } from "@/components/common/RichText";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ConfigurableProductView } from "@/components/configurator/ConfigurableProductView";
 import { CONDITION_LABEL, CONDITION_TONE } from "@/data/conditions";
@@ -456,9 +457,17 @@ function ReadyProductPage({
 
           {product.description ? (
           <TabsContent value="desc">
-            <div className="prose max-w-3xl space-y-4 text-body text-muted-foreground whitespace-pre-wrap">
-              {product.description}
-            </div>
+            {/* Описание хранится как HTML/markdown: рендерим разметку,
+                а не показываем теги текстом. */}
+            <RichText
+              value={product.description}
+              className="max-w-3xl"
+              renderLink={({ href, className, children }) => (
+                <Link href={href} className={className}>
+                  {children}
+                </Link>
+              )}
+            />
           </TabsContent>
           ) : null}
 

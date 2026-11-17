@@ -263,6 +263,53 @@
   }
   .surface-card { @apply rounded-lg border border-border bg-card shadow-card; }
 
+  /* ── RichText: HTML/markdown описаний (товар, категория, блог) ──
+     Tailwind typography в проекте не подключён, поэтому стили заданы явно.
+     Селекторы работают и для markdown, и для HTML из редактора/ИИ. */
+  .rich-text { @apply text-body leading-relaxed text-muted-foreground; }
+  .rich-text > :first-child { margin-top: 0; }
+  .rich-text > :last-child { margin-bottom: 0; }
+  .rich-text p { @apply mt-3; }
+  .rich-text h1 { @apply mt-6 text-h2 font-semibold text-foreground; }
+  .rich-text h2 { @apply mt-6 text-h3 font-semibold text-foreground; }
+  .rich-text h3 { @apply mt-5 text-h4 font-semibold text-foreground; }
+  .rich-text h4,
+  .rich-text h5,
+  .rich-text h6 { @apply mt-4 text-body font-semibold text-foreground; }
+  .rich-text strong,
+  .rich-text b { @apply font-semibold text-foreground; }
+  .rich-text em,
+  .rich-text i { @apply italic; }
+  .rich-text ul { @apply mt-3 list-disc space-y-1 pl-5; }
+  .rich-text ol { @apply mt-3 list-decimal space-y-1 pl-5; }
+  .rich-text li > ul,
+  .rich-text li > ol { @apply mt-1; }
+  .rich-text a { @apply text-primary underline underline-offset-2 hover:no-underline; }
+  .rich-text blockquote {
+    @apply mt-4 border-l-2 border-border pl-4 italic text-muted-foreground;
+  }
+  .rich-text hr { @apply my-5 border-border; }
+  .rich-text code {
+    @apply rounded bg-muted px-1 py-0.5 font-mono text-[0.9em] text-foreground;
+  }
+  .rich-text pre {
+    @apply mt-4 overflow-x-auto rounded-md border border-border bg-muted p-3 text-caption;
+  }
+  .rich-text pre code { @apply bg-transparent p-0; }
+  .rich-text img { @apply my-3 h-auto max-w-full rounded-md border border-border; }
+  .rich-text figure { @apply mt-4; }
+  .rich-text figcaption { @apply mt-1 text-caption text-muted-foreground; }
+  .rich-text table { @apply mt-4 w-full border-collapse text-body-sm; }
+  .rich-text th,
+  .rich-text td { @apply border border-border px-3 py-2 text-left align-top; }
+  .rich-text th { @apply bg-muted font-semibold text-foreground; }
+  .rich-text details { @apply mt-4 rounded-md border border-border bg-card px-4 py-3; }
+  .rich-text summary { @apply cursor-pointer select-none font-semibold text-foreground; }
+  .rich-text details[open] summary { @apply mb-2; }
+
+  /* Короткие сноски: одна-две строки, теги уже убраны plainText()/stripHtml(). */
+  .clamped-text { @apply whitespace-normal break-words; }
+
   /* Sticky TopBar+Header: stays in view on scroll. self-start is set in markup. */
   .site-chrome {
     padding-top: var(--safe-top);

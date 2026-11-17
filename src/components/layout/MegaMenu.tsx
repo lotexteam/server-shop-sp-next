@@ -6,6 +6,7 @@ import { ArrowRight, Box } from "lucide-react";
 import { getIcon } from "@/lib/icons";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { plainText } from "@/lib/rich-text";
 import { categoryHref } from "@/lib/api";
 import { useCategories } from "@/hooks/useCategories";
 import { useMenu } from "@/hooks/useMenu";
@@ -175,9 +176,9 @@ export function MegaMenu({
               >
                 <span className="min-w-0">
                   <span className="block text-body-sm font-semibold text-primary">{f.label}</span>
-                  {f.description && (
-                    <span className="mt-0.5 block line-clamp-2 text-caption text-muted-foreground">
-                      {f.description}
+                  {plainText(f.description) && (
+                    <span className="clamped-text mt-0.5 block line-clamp-2 text-caption text-muted-foreground">
+                      {plainText(f.description)}
                     </span>
                   )}
                 </span>

@@ -8,10 +8,8 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import ReactMarkdown from "react-markdown";
-import rehypeRaw from "rehype-raw";
-import rehypeSanitize from "rehype-sanitize";
-import remarkGfm from "remark-gfm";
+import { plainText } from "@/lib/rich-text";
+import { RichText } from "@/components/common/RichText";
 import {
   Heart,
   Minus,
@@ -739,9 +737,9 @@ export function ConfigurableProductView({ product }: Props) {
                 .filter(Boolean)
                 .join(" · ")}
             </p>
-            {(activePlatform?.shortDescription || product.shortDescription) && (
-              <p className="line-clamp-2 text-body-sm text-muted-foreground">
-                {activePlatform?.shortDescription || product.shortDescription}
+            {plainText(activePlatform?.shortDescription || product.shortDescription) && (
+              <p className="clamped-text line-clamp-2 text-body-sm text-muted-foreground">
+                {plainText(activePlatform?.shortDescription || product.shortDescription)}
               </p>
             )}
 
@@ -888,22 +886,10 @@ export function ConfigurableProductView({ product }: Props) {
             </TabsContent>
             {product.description?.trim() && (
               <TabsContent value="description" className="mt-0">
-                <div className="surface-card p-4 text-body-sm leading-relaxed sm:p-5">
-                  <ReactMarkdown
-                    remarkPlugins={[remarkGfm]}
-                    rehypePlugins={[rehypeRaw, rehypeSanitize]}
-                    components={{
-                      h2: ({ children }) => <h2 className="mt-6 text-h5 font-semibold text-foreground first:mt-0">{children}</h2>,
-                      h3: ({ children }) => <h3 className="mt-5 text-body font-semibold text-foreground first:mt-0">{children}</h3>,
-                      p: ({ children }) => <p className="mt-3 first:mt-0">{children}</p>,
-                      ul: ({ children }) => <ul className="mt-3 list-disc space-y-1 pl-5 first:mt-0">{children}</ul>,
-                      ol: ({ children }) => <ol className="mt-3 list-decimal space-y-1 pl-5 first:mt-0">{children}</ol>,
-                      strong: ({ children }) => <strong className="font-semibold text-foreground">{children}</strong>,
-                      a: ({ children, href }) => <a href={href} className="text-primary underline underline-offset-2">{children}</a>,
-                    }}
-                  >
-                    {product.description}
-                  </ReactMarkdown>
+                <div className="surface-card p-4 sm:p-5">
+                  {/* Описание — HTML/markdown из админки/ИИ: общий рендерер
+                      с санитизацией и стилями (.rich-text). */}
+                  <RichText value={product.description} className="text-body-sm" />
                 </div>
               </TabsContent>
             )}
@@ -1217,9 +1203,9 @@ function PlatformPanel({
           <p className="mt-1 text-body-sm font-medium leading-snug text-foreground">
             {label}
           </p>
-          {selected?.shortDescription && (
-            <p className="mt-0.5 line-clamp-1 text-caption text-muted-foreground">
-              {selected.shortDescription}
+          {plainText(selected?.shortDescription) && (
+            <p className="clamped-text mt-0.5 line-clamp-1 text-caption text-muted-foreground">
+              {plainText(selected?.shortDescription)}
             </p>
           )}
         </div>

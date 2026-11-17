@@ -6,6 +6,7 @@ import { getIcon } from "@/lib/icons";
 import { ArrowRight, ChevronDown, ChevronRight, ChevronUp } from "lucide-react";
 import { Reveal } from "@/components/common/Section";
 import { cn } from "@/lib/utils";
+import { plainText } from "@/lib/rich-text";
 import { seedCategories, useCategories } from "@/hooks/useCategories";
 import { useMenu } from "@/hooks/useMenu";
 import { categoryHref, type MenuNavItem } from "@/lib/api";
@@ -151,9 +152,9 @@ export function CatalogCategories({ initialCategories }: { initialCategories?: C
                       ? `${kids.length} подкатегори${kids.length === 1 ? "я" : kids.length < 5 ? "и" : "й"}`
                       : "Категория"}
                   </p>
-                  {c.description && (
-                    <p className="mt-1.5 line-clamp-2 text-caption text-muted-foreground/90">
-                      {c.description}
+                  {plainText(c.description) && (
+                    <p className="clamped-text mt-1.5 line-clamp-2 text-caption text-muted-foreground/90">
+                      {plainText(c.description)}
                     </p>
                   )}
                 </div>
