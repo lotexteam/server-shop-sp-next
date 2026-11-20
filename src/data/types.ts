@@ -16,6 +16,8 @@ export interface Product {
   category: string;
   /** Primary category title from API (never a type/slug code). */
   categoryTitle?: string;
+  /** Pivot is_primary category — anchor for the breadcrumb chain. */
+  primaryCategorySlug?: string | null;
   /** All attached category slugs for filters / parent+child matching. */
   categorySlugs?: string[];
   image: string;

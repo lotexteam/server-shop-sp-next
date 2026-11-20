@@ -22,6 +22,7 @@ import { useShop } from "@/store/shop";
 import { useToast } from "@/components/ui/toast";
 import { useCompareAction } from "@/hooks/useCompareAction";
 import { fetchProduct, categoryHref } from "@/lib/api";
+import { buildCategoryChain } from "@/lib/category-chain";
 import type { Category, Product } from "@/data/types";
 import { seedCategories, useCategories } from "@/hooks/useCategories";
 import { NotFoundPage } from "./NotFoundPage";
@@ -132,31 +133,12 @@ function ReadyProductPage({
     setWarrantyTermId(base?.termId ?? warrantyOptions[0]?.termId ?? null);
   }, [warrantyOptions, warrantyTermId]);
 
-  // Цепочка категорий товара для крошек: Каталог → корень → … → подкатегория
+  // Цепочка категорий товара для крошек: Каталог → … → основная категория.
   const { categories } = useCategories();
-  const categoryChain = useMemo(() => {
-    const slugs = product.categorySlugs ?? [];
-    if (slugs.length === 0) return [];
-    let found: Array<{ slug: string; title: string }> = [];
-    const walk = (
-      nodes: Category[],
-      trail: Array<{ slug: string; title: string }>,
-    ): boolean => {
-      for (const n of nodes) {
-        const next = [...trail, { slug: n.slug, title: n.title }];
-        if (slugs.includes(n.slug)) {
-          found = next;
-          // Категория товара может лежать глубже по ветке — ищем самую глубокую
-          if (n.children?.length && walk(n.children as Category[], next)) return true;
-          return true;
-        }
-        if (n.children?.length && walk(n.children as Category[], next)) return true;
-      }
-      return false;
-    };
-    walk(categories, []);
-    return found;
-  }, [categories, product.categorySlugs]);
+  const categoryChain = useMemo(
+    () => buildCategoryChain(categories, product.categorySlugs, product.primaryCategorySlug),
+    [categories, product.categorySlugs, product.primaryCategorySlug],
+  );
 
   const gallery =
     product.images && product.images.length > 0

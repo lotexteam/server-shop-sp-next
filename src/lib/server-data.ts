@@ -94,7 +94,13 @@ type ApiProduct = {
   short_name?: string | null;
   short_description?: string | null;
   brand?: { id?: string; name?: string; slug?: string } | null;
-  categories?: Array<{ id: string; name: string; slug: string }>;
+  categories?: Array<{
+    id: string;
+    name: string;
+    slug: string;
+    is_primary?: boolean;
+    sort_order?: number;
+  }>;
   shipping_category_slugs?: string[];
   price?: {
     display?: number | null;
@@ -205,13 +211,15 @@ export function mapApiProduct(p: ApiProduct): Product {
   const display = p.price?.display ?? null;
   const compare = p.price?.compare_at_display ?? null;
   const brand = (p.brand?.name || "").trim();
+  const attached = (p.categories || []).filter((c) => c.slug);
+  const primary = attached.find((c) => c.is_primary) ?? attached[0] ?? null;
+  const primaryCategorySlug = primary?.slug ?? null;
   const categorySlugs = [...new Set([
-    ...(p.categories || []).map((c) => c.slug).filter(Boolean),
+    ...attached.map((c) => c.slug),
     ...(p.shipping_category_slugs || []),
   ])];
-  const category = categorySlugs[0] ?? "";
-  const categoryTitle =
-    (p.categories || []).map((c) => (c.name || "").trim()).find(Boolean) || "";
+  const category = primaryCategorySlug ?? categorySlugs[0] ?? "";
+  const categoryTitle = (primary?.name || "").trim();
   const { card, gallery } = resolveProductImages(p);
   const placeholder = productImage(p.name, 200 + (p.name.length % 100));
 
@@ -222,6 +230,7 @@ export function mapApiProduct(p: ApiProduct): Product {
     brand,
     category,
     categoryTitle,
+    primaryCategorySlug,
     categorySlugs,
     image: card || placeholder,
     images: gallery.length ? gallery : undefined,

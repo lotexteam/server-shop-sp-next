@@ -38,6 +38,8 @@ import { Table, TableBody, TableCell, TableRow } from "@/components/ui/table";
 
 import { formatPrice, cn } from "@/lib/utils";
 import { categoryHref, downloadConfiguratorPdf } from "@/lib/api";
+import { buildCategoryChain } from "@/lib/category-chain";
+import { useCategories } from "@/hooks/useCategories";
 import { VatHint } from "@/components/common/Price";
 import { ConfigPrintSheet, type PrintRow } from "@/components/configurator/ConfigPrintSheet";
 import { useShop } from "@/store/shop";
@@ -232,6 +234,14 @@ export function ConfigurableProductView({ product }: Props) {
   const displayTitle =
     activePlatform?.name || state.cfg?.name || product.title;
   const displayLabel = platformLabel(displayTitle);
+
+  // Крошки — та же цепочка, что на обычной карточке товара: основная
+  // категория (pivot is_primary) + предки из дерева. Никакого «Серверы».
+  const { categories } = useCategories();
+  const categoryChain = useMemo(
+    () => buildCategoryChain(categories, product.categorySlugs, product.primaryCategorySlug),
+    [categories, product.categorySlugs, product.primaryCategorySlug],
+  );
   const displaySku =
     activePlatform?.sku || product.sku || state.cfg?.slug || product.slug;
   const isFav =
@@ -681,7 +691,10 @@ export function ConfigurableProductView({ product }: Props) {
       <Breadcrumbs
         items={[
           { label: "Каталог", href: "/catalog" },
-          { label: "Серверы", href: categoryHref("servers") },
+          ...categoryChain.map((c) => ({
+            label: c.title,
+            href: categoryHref(c.slug),
+          })),
           { label: displayTitle },
         ]}
         className="mb-5"
