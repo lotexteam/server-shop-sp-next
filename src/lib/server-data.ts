@@ -408,6 +408,46 @@ export const fetchCategoriesCached = cache(fetchCategoriesServer);
  * Витринный каталог: hide zero-price builtin options unless platform.
  * Урок из MEMORY: фильтр перенесён ДОСЛОВНО из useCatalogProducts.ts.
  */
+/**
+ * Карточная проекция товара для SSR-списков.
+ *
+ * Полный Product тянет в RSC-пейлоад описание, документы, состав сборки,
+ * фильтры, галерею и гарантию — в списках они не нужны (аудит 2026-11-20:
+ * perf-page-weight 132 КБ HTML, content-text-html-ratio). Карточка товара
+ * грузит полный объект сама; здесь — только то, что рендерит ProductCard.
+ */
+export function trimProductForCard(p: Product): Product {
+  return {
+    id: p.id,
+    slug: p.slug,
+    title: p.title,
+    brand: p.brand,
+    category: p.category,
+    categoryTitle: p.categoryTitle,
+    primaryCategorySlug: p.primaryCategorySlug,
+    image: p.image,
+    price: p.price,
+    oldPrice: p.oldPrice,
+    onRequest: p.onRequest,
+    status: p.status,
+    configuratorStatus: p.configuratorStatus,
+    condition: p.condition,
+    badges: p.badges,
+    sku: p.sku,
+    shortName: p.shortName,
+    specs: p.specs.slice(0, 3),
+    isConfigurable: p.isConfigurable,
+    isReadyConfiguration: p.isReadyConfiguration,
+    configuratorEdit: p.configuratorEdit
+      ? { ...p.configuratorEdit, selections: [] }
+      : null,
+  };
+}
+
+export function trimProductsForCards(products: Product[]): Product[] {
+  return products.map(trimProductForCard);
+}
+
 export function applyCatalogFilter(products: Product[]): Product[] {
   return products.filter(
     (p) =>
@@ -452,7 +492,7 @@ export async function fetchCatalogPageServer(slug?: string): Promise<{
       : [];
   const products = await fetchProductsCached(1, 12, categoryIds);
   return {
-    products: products ? applyCatalogFilter(products.items) : null,
+    products: products ? trimProductsForCards(applyCatalogFilter(products.items)) : null,
     total: products?.total ?? 0,
     categories,
   };

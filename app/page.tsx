@@ -1,7 +1,7 @@
 import { HomePage } from "@/views/HomePage";
 import { pageSeo, JsonLd } from "@/lib/seo-page";
 import { permanentRedirect } from "next/navigation";
-import { fetchCategoriesCached, fetchProductsCached } from "@/lib/server-data";
+import { fetchCategoriesCached, fetchProductsCached, trimProductsForCards } from "@/lib/server-data";
 
 export const dynamic = "force-dynamic";
 
@@ -34,7 +34,7 @@ export default async function Page() {
     fetchCategoriesCached(),
   ]);
   const initialProducts = page1
-    ? page1.items.filter((p) => !p.slug.startsWith("cfg-opt-"))
+    ? trimProductsForCards(page1.items.filter((p) => !p.slug.startsWith("cfg-opt-")))
     : null;
   return (
     <>

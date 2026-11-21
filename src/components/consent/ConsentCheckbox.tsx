@@ -34,8 +34,12 @@ export function ConsentCheckbox({ id, checked, onChange, error, className }: Con
         onCheckedChange={(value) => onChange(value === true)}
         className="mt-0.5"
         aria-invalid={error || undefined}
+        // Radix рендерит <button role="checkbox">, а <label for> не даёт имя
+        // кнопке — без aria-labelledby кнопка оставалась безымянной
+        // (аудит 2026-11-20: a11y-button-name, footer-subscribe-consent).
+        aria-labelledby={`${id}-label`}
       />
-      <label htmlFor={id} className="cursor-pointer text-caption leading-relaxed text-muted-foreground">
+      <label id={`${id}-label`} htmlFor={id} className="cursor-pointer text-caption leading-relaxed text-muted-foreground">
         {formConsentText()}{" "}
         <Link
            href={privacyPolicyHref()}

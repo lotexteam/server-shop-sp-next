@@ -1,5 +1,35 @@
 # Журнал миграции sp-ui → sp-next (рецепт для sale-ui)
 
+## 2026-11-20 — перенос SEO-хардненинга store-server-next (аудит 49/F)
+
+Тот же аудит (15 critical / 42 warning) закрыт и на этом скине. Общая причина
+трёх critical: Next 16 **стримит** метаданные — `<title>`, `<meta>`,
+`<link rel=canonical>` доезжали в `<body>`; route-level `app/loading.tsx`
+отправлял оболочку с HTTP 200 до готовности страницы (контент уезжал в
+`<div hidden>` → thin content, `notFound()` → soft-404).
+
+- `next.config.ts`: `htmlLimitedBots: /.*/`, `poweredByHeader: false`,
+  `headers()` с HSTS/XFO/nosniff/CSP/COOP/Referrer/Permissions
+  (`src/lib/security-headers.ts`), `NEXT_PUBLIC_SITE_URL`, GEO-rewrites
+  (`/AGENTS.md`, `/index.md`, `/.well-known/mcp.json`, `agent-card.json`).
+- `app/loading.tsx` удалён: страница рендерится целиком в первом ответе.
+- `app/layout.tsx`: серверный снимок контактов/подвала (`src/lib/chrome-server.ts`),
+  skip-link и `<main id="main">`, `<link rel="llms">`.
+- `src/lib/seo-page.tsx`: og:image-фолбэк (лого скина), описание 120–160,
+  enrichment JSON-LD (`src/lib/seo-jsonld.ts`) — @id, logo, contactPoint,
+  address, sameAs, dateModified.
+- `src/lib/server-data.ts`: `trimProductsForCards` — карточная проекция
+  в SSR-списках (легче HTML, выше text-to-HTML).
+- `Footer.tsx`: ссылки только на существующие страницы, h2 вместо h4,
+  подписи/autocomplete, share-кнопки, `/terms` и `/editorial-policy`,
+  контакты в `<address>` (первый HTML).
+- Новые страницы/файлы: `/terms`, `/editorial-policy` (текст из
+  `GET /api/v1/pages/{slug}`), `/AGENTS.md`, `/index.md`,
+  `/.well-known/mcp.json`, `/.well-known/agent-card.json`
+  (прокси бэкенда через `src/lib/backend-proxy.ts`).
+- **Правило:** контакты, юр-данные, тексты страниц и AI-манифесты живут в CMS
+  (server-shop) — во фронтенде только рендер и прокси.
+
 ## 2026-10-24 — SSR-дерево категорий: крошки/плитки/категория не «корневые»
 
 Симптомы: на товаре крошки «Каталог → товар» (без цепочки категорий),

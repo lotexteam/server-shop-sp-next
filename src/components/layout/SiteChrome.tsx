@@ -29,6 +29,7 @@ import { ToastProvider } from "../ui/toast";
 import { TooltipProvider } from "../ui/tooltip";
 import { useChromeHeightVar } from "@/hooks/useViewportFill";
 import { initConsent } from "@/lib/consent/consent";
+import type { ChromeContacts, ChromeMenuColumn } from "@/lib/chrome-server";
 
 function Chrome() {
   useChromeHeightVar();
@@ -49,7 +50,17 @@ function Chrome() {
   );
 }
 
-export function SiteChrome({ children }: { children: React.ReactNode }) {
+export function SiteChrome({
+  children,
+  contacts,
+  footerColumns,
+}: {
+  children: React.ReactNode;
+  /** Серверный снимок контактов: tel/mailto/адрес должны быть в первом HTML. */
+  contacts?: ChromeContacts | null;
+  /** Серверный снимок колонок подвала (CMS): без него в SSR был fallback. */
+  footerColumns?: ChromeMenuColumn[] | null;
+}) {
   const pathname = usePathname();
   // Плавающая кнопка «Конфигуратор» на мобильных (как в SPA):
   // не нужна на самом конфигураторе и на страницах товара — там своя панель сборки.
@@ -69,10 +80,18 @@ export function SiteChrome({ children }: { children: React.ReactNode }) {
         <ToastProvider>
           <TooltipProvider delayDuration={200}>
             <div className="flex min-h-screen flex-col">
+              {/* Skip link: первый Tab-фокус перепрыгивает шапку и меню
+                  (аудит 2026-11-20: a11y-skip-link). */}
+              <a
+                href="#main"
+                className="sr-only rounded-md bg-card px-4 py-2 text-body-sm font-semibold text-foreground shadow-card focus:not-sr-only focus:absolute focus:left-2 focus:top-2 focus:z-[100] focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
+              >
+                Перейти к содержимому
+              </a>
               <Chrome />
-              <main className="flex-1">{children}</main>
+              <main id="main" tabIndex={-1} className="flex-1">{children}</main>
               <div className="no-print">
-                <Footer />
+                <Footer initialContacts={contacts} initialColumns={footerColumns} />
                 <CompareBar />
               </div>
               {/* 152-ФЗ: cookie-баннер + панель настройки категорий */}

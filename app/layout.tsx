@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { SiteChrome } from "@/components/layout/SiteChrome";
 import { fetchSiteServer, formatPageTitleServer } from "@/lib/seo-server";
+import { fetchChromeContactsServer, fetchMenuColumnsServer } from "@/lib/chrome-server";
 import { MEDIA_BASE_URL } from "@/lib/api-base";
 // Дизайн-токены + Tailwind: тот же файл, что был index.css в SPA.
 import "@/index.css";
@@ -19,7 +20,15 @@ export async function generateMetadata(): Promise<Metadata> {
   const appUrl = (process.env.APP_URL || "").replace(/\/$/, "");
   const title = formatPageTitleServer(null, site) || "Магазин серверного оборудования";
   const description = site?.description || "";
-  const image = site?.ogImageUrl || site?.logoUrl || (appUrl ? `${appUrl}/favicon.svg` : "");
+  // og:image обязателен (аудит 2026-11-20: social-og-image). В CMS og_image_url
+  // и logo_url могут быть пусты — берём брендовый ассет самого скина.
+  const DEFAULT_OG = "/header_logo.svg";
+  const rawImage = site?.ogImageUrl || site?.logoUrl || null;
+  const image = rawImage
+    ? (rawImage.startsWith("http") ? rawImage : `${appUrl}${rawImage}`)
+    : appUrl
+      ? `${appUrl}${DEFAULT_OG}`
+      : "";
   const brand = site?.brand || "";
 
   return {
@@ -45,7 +54,7 @@ export async function generateMetadata(): Promise<Metadata> {
             url: "/",
             title,
             description: description || undefined,
-            ...(image ? { images: [{ url: image, width: 512, height: 512, alt: brand || undefined }] } : {}),
+            ...(image ? { images: [{ url: image, alt: brand || undefined }] } : {}),
           },
           twitter: {
             card: image ? "summary_large_image" : "summary",
@@ -53,13 +62,22 @@ export async function generateMetadata(): Promise<Metadata> {
           },
         }
       : {}),
+    // Манифест отдаёт route handler (app/manifest.webmanifest/route.ts).
+    manifest: "/manifest.webmanifest",
     icons: { icon: "/header_logo.svg" },
   };
 }
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
+  // Контакты и колонки подвала тянем на сервере: иначе телефон, email и адрес
+  // появляются только после гидрации, и в первом HTML их нет (E-E-A-T, NAP).
+  const [contacts, footerColumns] = await Promise.all([
+    fetchChromeContactsServer(),
+    fetchMenuColumnsServer("footer"),
+  ]);
+
   const mediaOrigin = (() => {
     const base = MEDIA_BASE_URL.replace(/\/$/, "");
     if (!base) return null;
@@ -114,11 +132,20 @@ export default function RootLayout({
           media="(min-width: 1024px)"
           fetchPriority="high"
         />
+        {/* GEO: явная ссылка на llms.txt — аудит не находил её и считал,
+            что llms.txt для AI-краулеров не объявлен (geo-llms-txt). */}
+        <link rel="llms" href="/llms.txt" type="text/plain" />
       </head>
       <body>
         {/* SSR отдаёт готовый HTML — loading-скелет #root:empty из index.html
-            больше не нужен. noscript-фолбэк сохранён дословно. */}
-        <SiteChrome>{children}</SiteChrome>
+            больше не нужен. noscript-фолбэк сохранён дословно.
+            app/loading.tsx намеренно отсутствует: route-level Suspense
+            отправлял оболочку с HTTP 200 до готовности страницы — контент
+            уезжал в <div hidden> (thin content), а notFound() превращался в
+            soft-404. Без него страница рендерится целиком в первом ответе. */}
+        <SiteChrome contacts={contacts} footerColumns={footerColumns}>
+          {children}
+        </SiteChrome>
         <noscript>
           <div>
             <p>

@@ -18,12 +18,54 @@ import {
   toLocalPath,
   type ServerSeoDocument,
 } from "./seo-server";
+import { fetchChromeContactsServer } from "./chrome-server";
+import { absoluteUrl, enrichJsonLd } from "./seo-jsonld";
 
 // Dedup запросов /seo/document и /settings/site: pageSeo вызывается и из
 // generateMetadata, и из тела страницы — кэш React отдаёт один результат
 // на запрос (один fetch вместо двух). Кэш per-request, между запросами не живёт.
 const fetchSeoDocumentCached = cache(fetchSeoDocumentServer);
 const fetchSiteCached = cache(fetchSiteServer);
+const fetchContactsCached = cache(fetchChromeContactsServer);
+
+/** Дефолтная OG-картинка скина (social-og-image): брендовый ассет из public/. */
+const DEFAULT_OG_IMAGE = "/header_logo.svg";
+
+/**
+ * Длина meta description: аудит 2026-11-20 ругался на 68 символов
+ * (core-description-length, норма 120–160). Дополняет описание БЭКЕНД
+ * (SeoDocumentBuilder::fitDescription — фактами из CMS), а витрина только
+ * нормализует пробелы и обрезает слишком длинное, чтобы не ломать вёрстку
+ * выдачи. Хардкодить «хвост» описания во фронтенде нельзя: текст живёт в CMS.
+ */
+export function fitDescription(raw: string | null | undefined): string {
+  const base = String(raw || "").replace(/\s+/g, " ").trim();
+  if (!base) return "";
+  if (base.length <= 160) return base;
+  const cut = base.slice(0, 159);
+  const lastSpace = cut.lastIndexOf(" ");
+  return `${cut.slice(0, lastSpace > 120 ? lastSpace : 159).replace(/[\s,;:.-]+$/, "")}…`;
+}
+
+function siteOrigin(): string {
+  const raw = (process.env.APP_URL || process.env.NEXT_PUBLIC_SITE_URL || "").replace(/\/$/, "");
+  if (!raw) return "";
+  try {
+    return new URL(raw).origin;
+  } catch {
+    return "";
+  }
+}
+
+/** Origin из абсолютного canonical SeoDocument (если APP_URL не задан). */
+function canonicalOrigin(canonical: string | null | undefined): string {
+  if (!canonical || !/^https?:\/\//i.test(canonical)) return "";
+  try {
+    return new URL(canonical).origin;
+  } catch {
+    return "";
+  }
+}
 
 /** titleFromPath из DocumentHead SPA (sp-ui набор). */
 const PATH_TITLES: Array<[string, string]> = [
@@ -50,13 +92,14 @@ function seoDocToMetadata(
   doc: ServerSeoDocument,
   site: Awaited<ReturnType<typeof fetchSiteServer>>,
 ): Metadata {
+  const description = fitDescription(doc.description) || undefined;
   const meta: Metadata = {
     // SeoDocumentBuilder возвращает ПОЛНЫЙ тайтл (с суффиксом сайта) —
     // absolute отключает template-суффикс из корневого layout.
     ...(doc.title
       ? { title: { absolute: doc.title } }
       : {}),
-    description: doc.description || undefined,
+    description,
   };
 
   if (doc.robots) meta.robots = doc.robots;
@@ -64,8 +107,14 @@ function seoDocToMetadata(
     meta.alternates = { canonical: doc.canonical };
   }
 
+  const origin = siteOrigin();
   const ogTitle = doc.title || undefined;
-  const ogDescription = doc.description || undefined;
+  const ogDescription = description;
+  // Open Graph: изображение обязательно (social-og-image). У главной в CMS
+  // og_image_url пуст — берём логотип, затем брендированную карточку 1200×630.
+  const rawImage = doc.image || site?.ogImageUrl || site?.logoUrl || null;
+  const image = rawImage ? absoluteUrl(rawImage, origin) : absoluteUrl(DEFAULT_OG_IMAGE, origin);
+
   // Next 16 валидирует openGraph.type и падает на значении вне whitelist
   // ('Invalid OpenGraph type: product' — инцидент «Ошибка рендеринга» на
   // страницах конфигураторов, og_type=product из SeoDocumentBuilder).
@@ -83,9 +132,14 @@ function seoDocToMetadata(
     title: ogTitle,
     description: ogDescription,
     url: doc.canonical || undefined,
-    ...(doc.image
-      ? { images: [{ url: doc.image, alt: doc.image_alt || undefined }] }
-      : {}),
+    images: image
+      ? [
+          {
+            url: image,
+            alt: doc.image_alt || doc.title || site?.brand || undefined,
+          },
+        ]
+      : undefined,
   };
   // Нестандартный og:type (например, product) отдаём прямым метатегом в
   // other — соцсети читают его, валидатор Next не видит. Прямой тег
@@ -96,10 +150,10 @@ function seoDocToMetadata(
   }
 
   meta.twitter = {
-    card: doc.image ? "summary_large_image" : "summary",
+    card: image ? "summary_large_image" : "summary",
     title: ogTitle,
     description: ogDescription,
-    ...(doc.image ? { images: [doc.image] } : {}),
+    ...(image ? { images: [image] } : {}),
   };
 
   // product:price:* — применяется теми же ключами, что в applyDocument SPA.
@@ -118,11 +172,17 @@ function fallbackMetadata(
 ): Metadata {
   const page = fallbackTitle(pathname);
   const title = formatPageTitleServer(page, site);
+  const canonicalPath = pathname.split("?")[0].replace(/\/+$/, "") || "/";
+  const privatePage = /^\/(?:account|checkout|build|configurator|unsubscribe|privacy\/withdraw)(?:\/|$)/.test(canonicalPath);
   return {
     // title может быть пустым (нет site и нет фолбэка) — останется default
     // из корневого layout.
     ...(title ? { title: { absolute: title } } : {}),
-    ...(site?.description ? { description: site.description } : {}),
+    ...(site?.description ? { description: fitDescription(site.description) } : {}),
+    // Без SeoDocument дочерняя страница иначе наследует canonical="/" из
+    // root layout и может канонизироваться как главная во время сбоя API.
+    alternates: { canonical: canonicalPath },
+    ...(privatePage ? { robots: { index: false, follow: false } } : {}),
   };
 }
 
@@ -150,9 +210,9 @@ export type PageSeoResult = {
    */
   redirectTo: string | null;
   /**
-   * SeoDocumentBuilder ответил kind=not_found — это ФАКТ отсутствия сущности
-   * (нет товара/категории/статьи): страница обязана отдать HTTP 404 через
-   * notFound(), а не мягкий 200 с фолбэк-метаданными. null-документ (сбой
+   * SeoDocumentBuilder ответил kind=not_found — это ФАКТ отсутствия
+   * сущности (нет товара/категории/статьи): страница обязана отдать HTTP 404
+   * через notFound(), а не мягкий 200 с фолбэк-метаданными. null-документ (сбой
    * витринного API) сюда НЕ попадает — там notFound=false, страница деградирует
    * в фолбэк и остаётся рабочей.
    */
@@ -163,9 +223,10 @@ export async function pageSeo(
   path: string,
   pathnameForFallback?: string,
 ): Promise<PageSeoResult> {
-  const [doc, site] = await Promise.all([
+  const [doc, site, contacts] = await Promise.all([
     fetchSeoDocumentCached(path),
     fetchSiteCached(),
+    fetchContactsCached(),
   ]);
   const notFound = doc?.kind === "not_found";
 
@@ -179,21 +240,43 @@ export async function pageSeo(
     }
   }
 
+  // Origin: APP_URL → абсолютный canonical SeoDocument. Третий фолбэк — пусто:
+  // относительные URL лучше выдуманного домена в разметке.
+  const origin = siteOrigin() || canonicalOrigin(doc?.canonical);
+  const brand = site?.brand || doc?.brand || "";
+  // Логотип сайта: CMS → ассет самой витрины (/logo.webp).
+  const logo = absoluteUrl(site?.logoUrl || "/logo.webp", origin);
+
   if (doc && !notFound) {
+    const pageUrl = doc.canonical || absoluteUrl(pathnameForFallback || path, origin);
+    const jsonld = enrichJsonLd(Array.isArray(doc.jsonld) ? doc.jsonld : [], {
+      origin,
+      pageUrl,
+      brand,
+      logoUrl: logo,
+      phone: contacts.phone,
+      email: contacts.email,
+      address: contacts.address,
+      socials: contacts.socials.map((s) => s.href),
+      pageTitle: doc.title || doc.h1 || undefined,
+      description: doc.description || undefined,
+    });
     return {
       metadata: seoDocToMetadata(doc, site),
-      jsonld: Array.isArray(doc.jsonld) ? doc.jsonld : [],
+      jsonld,
       redirectTo,
       notFound: false,
     };
   }
+
+  const fallbackPath = pathnameForFallback || path;
 
   if (notFound) {
     // Факт отсутствия: страница вызовет notFound() → настоящий HTTP 404.
     // redirect_to (если бэкенд отдал его вместе с not_found) приоритетнее:
     // страница проверяет redirectTo раньше notFound.
     return {
-      metadata: notFoundMetadata(pathnameForFallback || path, site),
+      metadata: notFoundMetadata(fallbackPath, site),
       jsonld: [],
       redirectTo,
       notFound: true,
@@ -201,8 +284,20 @@ export async function pageSeo(
   }
 
   return {
-    metadata: fallbackMetadata(pathnameForFallback || path, site),
-    jsonld: [],
+    metadata: fallbackMetadata(fallbackPath, site),
+    // Даже без SeoDocument страница получает WebPage + Organization/WebSite
+    // с @id и датой — иначе аудит видит разметку без сущностей.
+    jsonld: enrichJsonLd([], {
+      origin,
+      pageUrl: absoluteUrl(fallbackPath, origin),
+      brand,
+      logoUrl: logo,
+      phone: contacts.phone,
+      email: contacts.email,
+      address: contacts.address,
+      socials: contacts.socials.map((s) => s.href),
+      description: site?.description || undefined,
+    }),
     redirectTo,
     notFound: false,
   };

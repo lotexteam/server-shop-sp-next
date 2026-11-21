@@ -783,6 +783,8 @@ export type ShopContacts = {
   workHours: string | null;
   phones: string[];
   emails: string[];
+  /** Соцпрофили из CMS (cms.contacts.socials) — для sameAs и подвала. */
+  socials: Array<{ label: string; href: string }>;
   topbar: {
     delivery: string | null;
     warranty: string | null;
@@ -955,6 +957,7 @@ export async function fetchContacts(): Promise<ShopContacts> {
     workHours: null,
     phones: [],
     emails: [],
+    socials: [],
     topbar: { delivery: null, warranty: null },
     footer: { brand: null, about: null, copyright: null },
     organization: emptyOrganization(),
@@ -982,6 +985,13 @@ export async function fetchContacts(): Promise<ShopContacts> {
         work_hours?: string | null;
         phones?: string[];
         emails?: string[];
+        socials?: Array<{
+          label?: string | null;
+          name?: string | null;
+          title?: string | null;
+          url?: string | null;
+          href?: string | null;
+        } | string> | null;
         topbar?: { delivery?: string | null; warranty?: string | null };
         footer?: {
           brand?: string | null;
@@ -1033,6 +1043,17 @@ export async function fetchContacts(): Promise<ShopContacts> {
       workHours: d.work_hours ?? null,
       phones: d.phones || (phone ? [phone] : []),
       emails: d.emails || (email ? [email] : []),
+      socials: (d.socials || [])
+        .map((item) => {
+          if (typeof item === "string") {
+            const href = item.trim();
+            return href ? { label: href, href } : null;
+          }
+          const href = String(item.url || item.href || "").trim();
+          if (!href) return null;
+          return { label: String(item.label || item.name || item.title || "").trim() || href, href };
+        })
+        .filter((item): item is { label: string; href: string } => item !== null),
       topbar: {
         delivery: d.topbar?.delivery ?? null,
         warranty: d.topbar?.warranty ?? null,

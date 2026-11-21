@@ -215,11 +215,13 @@ export function SearchAutocomplete({
 
   return (
     <div ref={rootRef} className={cn("relative w-full", className)}>
-      <form onSubmit={submit} className="relative w-full" role="search">
+      <form onSubmit={submit} className="relative w-full" role="search" method="post" aria-label="Поиск по каталогу">
         <SearchIcon className="pointer-events-none absolute left-3.5 top-1/2 z-[1] size-4 -translate-y-1/2 text-muted-foreground" />
         <input
           ref={inputRef}
           type="search"
+          name="q"
+          aria-label="Поиск по каталогу"
           value={value}
           autoFocus={autoFocus}
           placeholder={placeholder}

@@ -341,10 +341,18 @@ export function Header() {
           </DrawerContent>
         </Drawer>
 
-        <Link href="/" className="flex shrink-0 items-center gap-2">
+        <Link href="/" className="flex shrink-0 items-center gap-2" aria-label={brand || "STORE-SERVER"}>
+          {/* Логотип — первая картинка документа, кандидат в LCP: явные
+              размеры (images-dimensions) и fetchPriority=high
+              (perf-lcp-hints). loading не задаём — по умолчанию eager,
+              lazy выше фолда аудит считает критичной ошибкой. */}
           <img
             src={logoSrc}
             alt={brand || "logo"}
+            width={143}
+            height={36}
+            fetchPriority="high"
+            decoding="async"
             className={
               site?.logoUrl
                 ? "h-7 max-w-[7.5rem] object-contain sm:h-8 sm:max-w-[9rem] lg:h-9 lg:max-w-[11rem]"
