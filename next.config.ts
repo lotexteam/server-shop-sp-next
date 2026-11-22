@@ -19,6 +19,7 @@ const nextConfig: NextConfig = {
   htmlLimitedBots: /.*/,
   // security-info-disclosure: X-Powered-By: Next.js выдавал стек.
   poweredByHeader: false,
+  compress: false,
   // Turbopack: корень проекта — этот каталог (иначе Next берёт каталог
   // первого найденного lockfile выше по дереву).
   turbopack: {

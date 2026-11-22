@@ -92,14 +92,16 @@ function jumpWindowTo(top: number) {
   });
 }
 
-export function WhyStorySection() {
+export function WhyStorySection({ initialSlides = [] }: { initialSlides?: HomeWhySlide[] }) {
   const { content, loading } = useHomeContent();
   const slides = useMemo(() => {
-    const fromApi = content?.whyStory?.slides?.length
+    const fromApi = initialSlides.length
+      ? mapApiSlides(initialSlides)
+      : content?.whyStory?.slides?.length
       ? mapApiSlides(content.whyStory.slides)
       : null;
     return fromApi && fromApi.length > 0 ? fromApi : FALLBACK_SLIDES;
-  }, [content]);
+  }, [content, initialSlides]);
 
   const isLg = useIsLg();
   const isLgRef = useRef(isLg);
@@ -223,7 +225,7 @@ export function WhyStorySection() {
     else if (dx > 40) goPrev();
   };
 
-  if (loading && !content) {
+  if (loading && !content && !initialSlides.length) {
     return (
       <section className="relative isolate flex h-[50vh] items-center justify-center text-white/70">
         Загрузка…

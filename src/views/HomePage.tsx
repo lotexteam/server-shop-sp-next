@@ -23,6 +23,8 @@ import type { Article, Category, Product } from "@/data/types";
 import { useEffect, useState } from "react";
 import { useMenu } from "@/hooks/useMenu";
 import { openCartDrawer } from "@/lib/cart-events";
+import { RichText } from "@/components/common/RichText";
+import type { ServerHomeContent } from "@/lib/server-data";
 
 const NEXT_SECTION_ID = "why-story";
 
@@ -35,10 +37,14 @@ const brands = ["Dell", "HPE", "Intel", "AMD", "Supermicro", "Lenovo", "Cisco", 
 export function HomePage({
   initialProducts,
   initialCategories,
+  initialHomeContent,
+  initialSeoContent,
 }: {
   initialProducts?: Product[];
   /** SSR-дерево категорий для плиток главной */
   initialCategories?: Category[];
+  initialHomeContent: ServerHomeContent;
+  initialSeoContent: { title: string; paragraphs: string[] };
 }) {
   if (initialCategories?.length) seedCategories(initialCategories);
   const router = useRouter();
@@ -58,9 +64,9 @@ export function HomePage({
   // в админке — блок/элемент не рендерится (никаких захардкоженных дефолтов).
   const hero = cmsHome?.hero;
   const heroTitle = {
-    prefix: hero?.titlePrefix || "",
-    highlight: hero?.titleHighlight || "",
-    suffix: hero?.titleSuffix || "",
+    prefix: hero?.titlePrefix || initialHomeContent.heroTitlePrefix,
+    highlight: hero?.titleHighlight || initialHomeContent.heroTitleHighlight,
+    suffix: hero?.titleSuffix || initialHomeContent.heroTitleSuffix,
   };
   const heroStats: Array<{ value: string; label: string }> = hero?.stats ?? [];
   const sec = cmsHome?.sections;
@@ -153,14 +159,14 @@ export function HomePage({
                       {heroTitle.suffix ? <> {heroTitle.suffix}</> : null}
                     </h1>
                   ) : null}
-                  {hero?.subtitle ? (
+                  {(hero?.subtitle || initialHomeContent.heroLead) ? (
                     <p
                       className="hero-fit-lead max-w-lg text-white/80"
                       style={{ marginTop: "var(--hero-gap-md)" }}
                     >
                       <LinkedText
                         segments={cmsHome?.textSegments?.["hero.subtitle"]}
-                        fallback={hero.subtitle}
+                        fallback={hero?.subtitle || initialHomeContent.heroLead}
                         linkClassName="text-white underline decoration-primary underline-offset-2 hover:text-primary"
                       />
                     </p>
@@ -251,8 +257,16 @@ export function HomePage({
           </section>
 
           <div id={NEXT_SECTION_ID} className="scroll-mt-[var(--chrome-h)]">
-            <WhyStorySection />
+            <WhyStorySection initialSlides={initialHomeContent.whyStory} />
           </div>
+          {initialSeoContent.paragraphs.length > 0 && (
+            <section className="container-page py-10 text-body leading-relaxed text-muted-foreground" aria-labelledby={initialSeoContent.title ? "home-seo-title" : undefined}>
+              {initialSeoContent.title ? <h2 id="home-seo-title" className="mb-4 text-h3 text-white">{initialSeoContent.title}</h2> : null}
+              <div className="space-y-4">
+                {initialSeoContent.paragraphs.map((paragraph, index) => <RichText key={index} value={paragraph} />)}
+              </div>
+            </section>
+          )}
         </div>
       </div>
 

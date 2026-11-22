@@ -214,6 +214,8 @@ export function Footer({
               <img
                 src={logoSrc}
                 alt={brand || "logo"}
+                loading="lazy"
+                fetchPriority="low"
                 className="h-9 max-w-[9rem] object-contain"
               />
             ) : (

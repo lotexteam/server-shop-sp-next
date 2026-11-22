@@ -24,6 +24,7 @@
 import { API_BASE_SERVER } from "@/lib/api-base";
 import { cache } from "react";
 import { productImage } from "@/lib/placeholder";
+import type { HomeWhySlide } from "@/lib/api";
 
 export type { Product, Category, Subcategory } from "@/data/types";
 import type { Product, Category, Subcategory } from "@/data/types";
@@ -36,6 +37,7 @@ const FETCH_TIMEOUT_MS = 4000;
 const CATEGORIES_REVALIDATE_S = 300;
 const PRODUCT_REVALIDATE_S = 60;
 const PRODUCT_LIST_REVALIDATE_S = 60;
+const HOME_REVALIDATE_S = 60;
 
 function appUrlOrigin(): string {
   const raw = (process.env.APP_URL || "").replace(/\/$/, "");
@@ -403,6 +405,81 @@ export async function fetchCategoriesServer(): Promise<Category[] | null> {
 export const fetchProductCached = cache(fetchProductServer);
 export const fetchProductsCached = cache(fetchProductsServer);
 export const fetchCategoriesCached = cache(fetchCategoriesServer);
+
+export type ServerHomeContent = {
+  heroTitlePrefix: string;
+  heroTitleHighlight: string;
+  heroTitleSuffix: string;
+  heroLead: string;
+  whyStory: HomeWhySlide[];
+  seoContentTitle: string;
+  seoContent: string[];
+};
+
+/** Homepage editorial copy is backend CMS content and must be in the first HTML. */
+export async function fetchHomeContentServer(): Promise<ServerHomeContent> {
+  const empty: ServerHomeContent = {
+    heroTitlePrefix: "",
+    heroTitleHighlight: "",
+    heroTitleSuffix: "",
+    heroLead: "",
+    whyStory: [],
+    seoContentTitle: "",
+    seoContent: [],
+  };
+  const res = await serverGet<ApiItem<Record<string, unknown>>>("/settings/home", HOME_REVALIDATE_S);
+  const home = res?.data;
+  if (!home) return empty;
+
+  const textMap = home.texts_map && typeof home.texts_map === "object" && !Array.isArray(home.texts_map)
+    ? home.texts_map as Record<string, unknown>
+    : {};
+  const hero = home.hero && typeof home.hero === "object" && !Array.isArray(home.hero)
+    ? home.hero as Record<string, unknown>
+    : {};
+  const text = (code: string, fallback?: unknown) => String(textMap[code] ?? fallback ?? "").trim();
+  const story = home.why_story && typeof home.why_story === "object" && !Array.isArray(home.why_story)
+    ? (home.why_story as Record<string, unknown>).slides
+    : null;
+  const whyStory = Array.isArray(story)
+    ? story.map((value, index) => {
+        const slide = value && typeof value === "object" ? value as Record<string, unknown> : {};
+        const points = Array.isArray(slide.points) ? slide.points : [];
+        const accent: HomeWhySlide["accent"] = slide.accent === "accent" || slide.accent === "success"
+          ? slide.accent
+          : "primary";
+        return {
+          id: String(slide.id || `slide-${index}`),
+          eyebrow: String(slide.eyebrow || ""),
+          title: String(slide.title || ""),
+          lead: String(slide.lead || slide.subtitle || ""),
+          accent,
+          points: points.map((value) => {
+            const point = value && typeof value === "object" ? value as Record<string, unknown> : {};
+            return {
+              icon: String(point.icon || "Check"),
+              title: String(point.title || ""),
+              desc: String(point.desc || point.description || ""),
+            };
+          }),
+        };
+      }).filter((slide) => slide.title || slide.lead)
+    : [];
+
+  return {
+    heroTitlePrefix: text("hero.title_prefix", hero.title_prefix),
+    heroTitleHighlight: text("hero.title_highlight", hero.title_highlight),
+    heroTitleSuffix: text("hero.title_suffix", hero.title_suffix),
+    heroLead: text("hero.lead", hero.lead) || text("hero.subtitle", hero.subtitle),
+    whyStory,
+    seoContentTitle: String(home.seo_content_title || "").trim(),
+    seoContent: Array.isArray(home.seo_content)
+      ? home.seo_content.filter((value): value is string => typeof value === "string" && value.trim() !== "")
+      : [],
+  };
+}
+
+export const fetchHomeContentCached = cache(fetchHomeContentServer);
 
 /**
  * Витринный каталог: hide zero-price builtin options unless platform.

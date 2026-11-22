@@ -37,7 +37,7 @@ const CSP = [
 
 export const SECURITY_HEADERS: SecurityHeader[] = [
   // 1 год; includeSubDomains безопасен: все хосты (*.store-server.ru) — HTTPS.
-  { key: "Strict-Transport-Security", value: "max-age=31536000; includeSubDomains" },
+  { key: "Strict-Transport-Security", value: "max-age=31536000; includeSubDomains; preload" },
   { key: "X-Content-Type-Options", value: "nosniff" },
   { key: "X-Frame-Options", value: "SAMEORIGIN" },
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
