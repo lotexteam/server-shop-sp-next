@@ -22,8 +22,8 @@ const DEFAULT_TTL_DAYS = 365;
 
 export const DEFAULT_FORM_CONSENT_TEXT =
   "Отправляя форму, я даю согласие на обработку моих персональных данных в соответствии с Политикой конфиденциальности.";
-export const DEFAULT_PRIVACY_HREF = "/blog/privacy-policy";
-export const DEFAULT_COOKIES_HREF = "/blog/cookie-policy";
+export const DEFAULT_PRIVACY_HREF = "";
+export const DEFAULT_COOKIES_HREF = "";
 
 export type ConsentChoice = {
   necessary: true;

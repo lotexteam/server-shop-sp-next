@@ -4,6 +4,7 @@ import Link from "next/link";
 import { Checkbox } from "@/components/ui/checkbox";
 import { formConsentText, privacyPolicyHref } from "@/lib/consent/consent";
 import { cn } from "@/lib/utils";
+import { useConsent } from "@/hooks/useConsent";
 
 type ConsentCheckboxProps = {
   id: string;
@@ -19,6 +20,7 @@ type ConsentCheckboxProps = {
  * настроек модуля (GET /consent/config), ссылка на Политику — в новом окне.
  */
 export function ConsentCheckbox({ id, checked, onChange, error, className }: ConsentCheckboxProps) {
+  useConsent();
   return (
     <div
       className={cn(
@@ -41,14 +43,16 @@ export function ConsentCheckbox({ id, checked, onChange, error, className }: Con
       />
       <label id={`${id}-label`} htmlFor={id} className="cursor-pointer text-caption leading-relaxed text-muted-foreground">
         {formConsentText()}{" "}
-        <Link
-           href={privacyPolicyHref()}
-          target="_blank"
-          rel="noreferrer"
-          className="text-foreground underline underline-offset-2 hover:text-primary"
-        >
-          Политика конфиденциальности
-        </Link>
+        {privacyPolicyHref() && (
+          <Link
+            href={privacyPolicyHref()}
+            target="_blank"
+            rel="noreferrer"
+            className="text-foreground underline underline-offset-2 hover:text-primary"
+          >
+            Политика конфиденциальности
+          </Link>
+        )}
         {error && <span className="mt-1 block text-destructive">Необходимо дать согласие на обработку персональных данных</span>}
       </label>
     </div>

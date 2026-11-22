@@ -76,14 +76,20 @@ export function CookieConsent() {
               <Cookie className="mt-0.5 size-5 shrink-0 opacity-80" aria-hidden />
               <div className="min-w-0">
                 <p className="text-body-sm leading-relaxed opacity-95">{banner.text}</p>
-                <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-caption opacity-80">
-                  <a href={privacyPolicyHref()} target="_blank" rel="noreferrer" className="underline underline-offset-2 transition-opacity hover:opacity-80">
-                    Политика конфиденциальности
-                  </a>
-                  <a href={cookiesPolicyHref()} target="_blank" rel="noreferrer" className="underline underline-offset-2 transition-opacity hover:opacity-80">
-                    Политика использования cookie
-                  </a>
-                </div>
+                {(privacyPolicyHref() || cookiesPolicyHref()) && (
+                  <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-caption opacity-80">
+                    {privacyPolicyHref() && (
+                      <a href={privacyPolicyHref()} target="_blank" rel="noreferrer" className="underline underline-offset-2 transition-opacity hover:opacity-80">
+                        Политика конфиденциальности
+                      </a>
+                    )}
+                    {cookiesPolicyHref() && (
+                      <a href={cookiesPolicyHref()} target="_blank" rel="noreferrer" className="underline underline-offset-2 transition-opacity hover:opacity-80">
+                        Политика использования cookie
+                      </a>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
 
@@ -152,9 +158,9 @@ export function CookieConsent() {
             })}
 
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <a href={cookiesPolicyHref()} target="_blank" rel="noreferrer" className="text-caption text-muted-foreground underline underline-offset-2 hover:text-foreground">
+              {cookiesPolicyHref() && <a href={cookiesPolicyHref()} target="_blank" rel="noreferrer" className="text-caption text-muted-foreground underline underline-offset-2 hover:text-foreground">
                 Подробнее в политике cookie
-              </a>
+              </a>}
               <div className="flex items-center gap-2">
                 <Button type="button" variant="outline" size="sm" className="h-11 sm:h-9" onClick={acceptAll}>
                   {banner.accept_label}
@@ -171,9 +177,9 @@ export function CookieConsent() {
               </div>
             </div>
 
-            <Link href={privacyPolicyHref()} className="text-caption text-muted-foreground underline underline-offset-2 hover:text-foreground" onClick={() => setSettingsOpen(false)}>
+            {privacyPolicyHref() && <Link href={privacyPolicyHref()} className="text-caption text-muted-foreground underline underline-offset-2 hover:text-foreground" onClick={() => setSettingsOpen(false)}>
               Политика конфиденциальности
-            </Link>
+            </Link>}
           </div>
         </DialogContent>
       </Dialog>

@@ -2,8 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { Server, Phone, Mail, MapPin, Clock, Send, CheckCircle2, Share2 } from "lucide-react";
+import { Server, Phone, Mail, MapPin, Clock, Send, CheckCircle2 } from "lucide-react";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { useMenu } from "@/hooks/useMenu";
@@ -20,9 +19,6 @@ import type { ChromeContacts, ChromeMenuColumn } from "@/lib/chrome-server";
  * файл лежит в public/ и адресуется строкой. */
 const headerLogo = "/header_logo.svg";
 
-/** Абсолютный origin для share-ссылок (шеринг требует полный URL). */
-const SITE_ORIGIN = (process.env.NEXT_PUBLIC_SITE_URL || "").replace(/\/$/, "");
-
 /**
  * Fallback, пока menus/footer не заполнен в админке: «Компания/Информация» —
  * только РЕАЛЬНО существующие страницы. Раньше здесь были /blog/monitoring,
@@ -38,7 +34,6 @@ const FALLBACK_FOOTER_COLS: ChromeMenuColumn[] = [
       { id: "fb-about", label: "О компании", href: "/blog/about" },
       { id: "fb-contacts", label: "Контакты", href: "/contacts" },
       { id: "fb-catalog", label: "Каталог", href: "/catalog" },
-      { id: "fb-terms", label: "Условия продажи", href: "/terms" },
     ],
   },
   {
@@ -49,7 +44,6 @@ const FALLBACK_FOOTER_COLS: ChromeMenuColumn[] = [
       { id: "fb-faq", label: "Вопросы и ответы", href: "/blog/faq" },
       { id: "fb-delivery", label: "Доставка", href: "/blog/delivery" },
       { id: "fb-warranty", label: "Гарантия", href: "/blog/warranty" },
-      { id: "fb-editorial", label: "Редакционная политика", href: "/editorial-policy" },
     ],
   },
 ];
@@ -91,13 +85,6 @@ function FooterColumn({ col }: { col: ChromeMenuColumn }) {
   );
 }
 
-/** Соцсети для шеринга текущей страницы (social-share-buttons). */
-const SHARE_TARGETS = [
-  { id: "vk", label: "ВКонтакте", href: (url: string, title: string) => `https://vk.com/share.php?url=${encodeURIComponent(url)}&title=${encodeURIComponent(title)}` },
-  { id: "telegram", label: "Telegram", href: (url: string, title: string) => `https://t.me/share/url?url=${encodeURIComponent(url)}&text=${encodeURIComponent(title)}` },
-  { id: "whatsapp", label: "WhatsApp", href: (url: string, title: string) => `https://wa.me/?text=${encodeURIComponent(`${title} ${url}`)}` },
-  { id: "ok", label: "Одноклассники", href: (url: string, title: string) => `https://connect.ok.ru/offer?url=${encodeURIComponent(url)}&title=${encodeURIComponent(title)}` },
-];
 
 export function Footer({
   initialContacts,
@@ -110,7 +97,6 @@ export function Footer({
   const { contacts } = useContacts();
   const { content: home } = useHomeContent();
   const { site } = useSiteSettings();
-  const pathname = usePathname();
 
   const [subEmail, setSubEmail] = useState("");
   const [subState, setSubState] = useState<
@@ -193,13 +179,9 @@ export function Footer({
       ? initialColumns
       : FALLBACK_FOOTER_COLS;
 
-  const socials = contacts?.socials?.length
+  const socials = contacts
     ? contacts.socials.map((s) => ({ label: s.label, href: s.href }))
     : (initialContacts?.socials ?? []);
-
-  // Абсолютный адрес текущей страницы для шеринга (SSR: origin из env).
-  const shareUrl = `${SITE_ORIGIN}${pathname || "/"}`;
-  const shareTitle = site?.title || brand || "STORE-SERVER";
 
   return (
     <footer className="mt-20 border-t border-border bg-card">
@@ -292,24 +274,6 @@ export function Footer({
               >
                 Связаться с нами
               </Link>
-              <Link
-                href="/terms"
-                className="underline underline-offset-2 transition-colors hover:text-primary"
-              >
-                Условия продажи
-              </Link>
-              <Link
-                href="/editorial-policy"
-                className="underline underline-offset-2 transition-colors hover:text-primary"
-              >
-                Редакционная политика
-              </Link>
-              <Link
-                href="/blog/privacy-policy"
-                className="underline underline-offset-2 transition-colors hover:text-primary"
-              >
-                Политика конфиденциальности
-              </Link>
               {consentPhase === "decided" && (
                 <button
                   type="button"
@@ -326,23 +290,6 @@ export function Footer({
               >
                 Отзыв согласия на обработку персональных данных
               </Link>
-            </div>
-            {/* Шеринг текущей страницы (social-share-buttons) */}
-            <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 md:justify-start">
-              <span className="inline-flex items-center gap-1">
-                <Share2 className="size-3.5" aria-hidden /> Поделиться:
-              </span>
-              {SHARE_TARGETS.map((target) => (
-                <a
-                  key={target.id}
-                  href={target.href(shareUrl, shareTitle)}
-                  target="_blank"
-                  rel="noopener noreferrer nofollow"
-                  className="min-h-11 inline-flex items-center underline underline-offset-2 transition-colors hover:text-primary"
-                >
-                  {target.label}
-                </a>
-              ))}
             </div>
           </div>
           <div className="w-full md:w-auto">
