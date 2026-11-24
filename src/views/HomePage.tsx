@@ -38,13 +38,11 @@ export function HomePage({
   initialProducts,
   initialCategories,
   initialHomeContent,
-  initialSeoContent,
 }: {
   initialProducts?: Product[];
   /** SSR-дерево категорий для плиток главной */
   initialCategories?: Category[];
   initialHomeContent: ServerHomeContent;
-  initialSeoContent: { title: string; paragraphs: string[] };
 }) {
   if (initialCategories?.length) seedCategories(initialCategories);
   const router = useRouter();
@@ -69,6 +67,10 @@ export function HomePage({
     suffix: hero?.titleSuffix || initialHomeContent.heroTitleSuffix,
   };
   const heroStats: Array<{ value: string; label: string }> = hero?.stats ?? [];
+  const configuratorHref = hero?.ctaConfiguratorHref.trim()
+    || initialHomeContent.heroConfiguratorHref
+    || "/configurator";
+  const { seoContentTitle, seoContent } = initialHomeContent;
   const sec = cmsHome?.sections;
   const secText = (key: keyof NonNullable<typeof sec>) => ({
     eyebrow: sec?.[key]?.eyebrow || "",
@@ -200,17 +202,12 @@ export function HomePage({
                       className="h-auto min-h-10 border-white/35 bg-white/10 px-4 py-2.5 text-white backdrop-blur-sm hover:border-white/55 hover:bg-white/20 hover:text-white sm:min-h-11 sm:px-5"
                       style={{ fontSize: "var(--hero-btn)" }}
                     >
-                      {/^https?:\/\//i.test(hero?.ctaConfiguratorHref ?? "") ? (
-                        <a href={hero?.ctaConfiguratorHref}>
+                      {/^https?:\/\//i.test(configuratorHref) ? (
+                        <a href={configuratorHref}>
                           <Cpu className="size-4 shrink-0" /> {hero?.ctaConfigurator || "Собрать сервер"}
                         </a>
                       ) : (
-                        <Link
-                           href={
-                            hero?.ctaConfiguratorHref?.trim() ||
-                            "/product/dell-poweredge-r740"
-                          }
-                        >
+                        <Link href={configuratorHref}>
                           <Cpu className="size-4 shrink-0" /> {hero?.ctaConfigurator || "Собрать сервер"}
                         </Link>
                       )}
@@ -259,11 +256,11 @@ export function HomePage({
           <div id={NEXT_SECTION_ID} className="scroll-mt-[var(--chrome-h)]">
             <WhyStorySection initialSlides={initialHomeContent.whyStory} />
           </div>
-          {initialSeoContent.paragraphs.length > 0 && (
-            <section className="container-page py-10 text-body leading-relaxed text-muted-foreground" aria-labelledby={initialSeoContent.title ? "home-seo-title" : undefined}>
-              {initialSeoContent.title ? <h2 id="home-seo-title" className="mb-4 text-h3 text-white">{initialSeoContent.title}</h2> : null}
+          {seoContent.length > 0 && (
+            <section className="container-page py-10 text-body leading-relaxed text-muted-foreground" aria-labelledby={seoContentTitle ? "home-seo-title" : undefined}>
+              {seoContentTitle ? <h2 id="home-seo-title" className="mb-4 text-h3 text-white">{seoContentTitle}</h2> : null}
               <div className="space-y-4">
-                {initialSeoContent.paragraphs.map((paragraph, index) => <RichText key={index} value={paragraph} />)}
+                {seoContent.map((paragraph, index) => <RichText key={index} value={paragraph} />)}
               </div>
             </section>
           )}

@@ -70,12 +70,13 @@ const accentStyles = {
 } as const;
 
 function useIsLg() {
-  const [isLg, setIsLg] = useState(
-    () => typeof window !== "undefined" && window.matchMedia("(min-width: 1024px)").matches,
-  );
+  // Keep the first client render identical to SSR. The media query is applied
+  // after hydration so desktop/mobile layout selection cannot trigger #418.
+  const [isLg, setIsLg] = useState(false);
   useEffect(() => {
     const mq = window.matchMedia("(min-width: 1024px)");
     const onChange = () => setIsLg(mq.matches);
+    onChange();
     mq.addEventListener("change", onChange);
     return () => mq.removeEventListener("change", onChange);
   }, []);

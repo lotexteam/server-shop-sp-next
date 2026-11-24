@@ -16,6 +16,7 @@ export type SecurityHeader = { key: string; value: string };
  *  - 'unsafe-eval' — dev-сборка и MapLibre GL;
  *  - mc.yandex.ru / googletagmanager.com — согласованные счётчики (грузим
  *    только после согласия в lib/consent);
+ *  - code.jivo.ru — загрузчик и бандл виджета, подключённого через GTM;
  *  - img-src https: — медиа отдаётся с отдельного S3-хоста;
  *  - frame-src https: — карта в контактах (iframe-фолбэк).
  */
@@ -23,7 +24,7 @@ const CSP = [
   "default-src 'self'",
   "base-uri 'self'",
   "object-src 'none'",
-  "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://mc.yandex.ru https://yandex.ru https://www.googletagmanager.com https://www.google-analytics.com",
+  "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://mc.yandex.ru https://yandex.ru https://www.googletagmanager.com https://www.google-analytics.com https://code.jivo.ru",
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob: https:",
   "font-src 'self' data:",

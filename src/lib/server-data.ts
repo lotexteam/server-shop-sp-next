@@ -411,6 +411,7 @@ export type ServerHomeContent = {
   heroTitleHighlight: string;
   heroTitleSuffix: string;
   heroLead: string;
+  heroConfiguratorHref: string;
   whyStory: HomeWhySlide[];
   seoContentTitle: string;
   seoContent: string[];
@@ -423,6 +424,7 @@ export async function fetchHomeContentServer(): Promise<ServerHomeContent> {
     heroTitleHighlight: "",
     heroTitleSuffix: "",
     heroLead: "",
+    heroConfiguratorHref: "",
     whyStory: [],
     seoContentTitle: "",
     seoContent: [],
@@ -438,6 +440,11 @@ export async function fetchHomeContentServer(): Promise<ServerHomeContent> {
     ? home.hero as Record<string, unknown>
     : {};
   const text = (code: string, fallback?: unknown) => String(textMap[code] ?? fallback ?? "").trim();
+  const texts = Array.isArray(home.texts)
+    ? (home.texts as Array<{ code?: string; href?: string; value?: string }>)
+    : [];
+  const configurator = texts.find((row) => row?.code === "hero.cta_configurator");
+  const configuratorHref = configurator?.href?.trim() || configurator?.value?.trim() || "";
   const story = home.why_story && typeof home.why_story === "object" && !Array.isArray(home.why_story)
     ? (home.why_story as Record<string, unknown>).slides
     : null;
@@ -466,15 +473,23 @@ export async function fetchHomeContentServer(): Promise<ServerHomeContent> {
       }).filter((slide) => slide.title || slide.lead)
     : [];
 
+  const storyParagraphs = new Set(
+    whyStory.flatMap((slide) => [slide.lead, ...slide.points.map((point) => point.desc)])
+      .map((paragraph) => paragraph.trim()),
+  );
+
   return {
     heroTitlePrefix: text("hero.title_prefix", hero.title_prefix),
     heroTitleHighlight: text("hero.title_highlight", hero.title_highlight),
     heroTitleSuffix: text("hero.title_suffix", hero.title_suffix),
     heroLead: text("hero.lead", hero.lead) || text("hero.subtitle", hero.subtitle),
+    heroConfiguratorHref: /^(?:https?:\/\/\S+|\/(?!\/)\S*)$/i.test(configuratorHref) ? configuratorHref : "",
     whyStory,
     seoContentTitle: String(home.seo_content_title || "").trim(),
     seoContent: Array.isArray(home.seo_content)
-      ? home.seo_content.filter((value): value is string => typeof value === "string" && value.trim() !== "")
+      ? home.seo_content.filter((value): value is string =>
+          typeof value === "string" && value.trim() !== "" && !storyParagraphs.has(value.trim()),
+        )
       : [],
   };
 }

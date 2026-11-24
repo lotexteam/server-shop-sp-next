@@ -44,7 +44,6 @@ export default async function Page() {
         initialProducts={initialProducts ?? undefined}
         initialCategories={categories ?? undefined}
         initialHomeContent={home}
-        initialSeoContent={{ title: home.seoContentTitle, paragraphs: home.seoContent }}
       />
     </>
   );
